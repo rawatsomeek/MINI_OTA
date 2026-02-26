@@ -1,0 +1,1077 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0D0D0D">
+<title>Package Details — VoyageAI</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet">
+<style>
+:root {
+  --ink:        #0D0D0D;
+  --ink-2:      #1A1A1A;
+  --ink-3:      #2A2A2A;
+  --paper:      #F5F0E8;
+  --gold:       #C9A84C;
+  --gold-light: #E2C97E;
+  --gold-dim:   rgba(201,168,76,0.15);
+  --sage:       #5C7A5E;
+  --white:      #FFFFFF;
+  --ghost:      rgba(255,255,255,0.05);
+  --ghost-2:    rgba(255,255,255,0.10);
+  --ghost-3:    rgba(255,255,255,0.18);
+  --border:     rgba(201,168,76,0.18);
+  --border-2:   rgba(201,168,76,0.35);
+  --shadow-lg:  0 32px 80px rgba(0,0,0,0.55);
+  --shadow-md:  0 12px 40px rgba(0,0,0,0.35);
+  --radius-lg:  20px;
+  --radius-md:  12px;
+  --radius-sm:  8px;
+  --font-serif: 'DM Serif Display', Georgia, serif;
+  --font-sans:  'DM Sans', system-ui, sans-serif;
+  --transition: 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: var(--font-sans);
+  background: var(--ink);
+  color: var(--white);
+  min-height: 100vh;
+  line-height: 1.6;
+  overflow-x: hidden;
+}
+
+/* Grain texture */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.6;
+}
+
+/* ═══ NAV ═══ */
+.nav {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 100;
+  padding: 0 40px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  backdrop-filter: blur(20px) saturate(1.4);
+  background: rgba(13,13,13,0.88);
+}
+.nav-logo {
+  font-family: var(--font-serif);
+  font-size: 20px;
+  color: var(--white);
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.nav-logo-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--gold); flex-shrink: 0; }
+.nav-back {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: rgba(255,255,255,0.5);
+  font-size: 13px;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+.nav-back:hover { color: var(--gold); }
+
+/* ═══ HERO ═══ */
+.pkg-hero {
+  position: relative;
+  min-height: 520px;
+  display: flex;
+  align-items: flex-end;
+  overflow: hidden;
+  margin-top: 64px;
+}
+.pkg-hero-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 0;
+  opacity: 0.72;
+  transition: opacity 1s ease;
+}
+.pkg-hero-gradient {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(13,13,13,0.15) 0%,
+    rgba(13,13,13,0.35) 40%,
+    rgba(13,13,13,0.75) 72%,
+    var(--ink) 100%
+  );
+  z-index: 1;
+}
+.pkg-hero-content {
+  position: relative;
+  z-index: 2;
+  padding: 60px 64px 52px;
+  width: 100%;
+  max-width: 960px;
+}
+.pkg-hero-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.pkg-hero-eyebrow-line {
+  width: 32px;
+  height: 1px;
+  background: var(--gold);
+  opacity: 0.7;
+}
+.pkg-hero-tag {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+.pkg-hero-title {
+  font-family: var(--font-serif);
+  font-size: clamp(38px, 5vw, 60px);
+  font-weight: 400;
+  line-height: 1.08;
+  margin-bottom: 14px;
+}
+.pkg-hero-tagline {
+  font-size: 16px;
+  color: rgba(255,255,255,0.6);
+  margin-bottom: 28px;
+  max-width: 560px;
+  line-height: 1.65;
+}
+.pkg-meta-pills {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.pkg-meta-pill {
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 100px;
+  padding: 6px 16px;
+  font-size: 13px;
+  color: rgba(255,255,255,0.72);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  backdrop-filter: blur(8px);
+}
+.pkg-meta-pill .val { color: var(--gold-light); font-weight: 500; }
+
+/* ═══ MAIN CONTENT ═══ */
+.pkg-body {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 52px 48px 100px;
+  position: relative;
+  z-index: 1;
+}
+
+/* Section heading */
+.section-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 28px;
+  margin-top: 52px;
+}
+.section-head:first-child { margin-top: 0; }
+.section-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--gold-dim);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+.section-label {
+  font-family: var(--font-serif);
+  font-size: 22px;
+  font-weight: 400;
+  color: rgba(255,255,255,0.92);
+}
+.section-head-line {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(201,168,76,0.25), transparent);
+}
+
+/* ═══ ABOUT ═══ */
+.pkg-about {
+  font-size: 16px;
+  line-height: 1.85;
+  color: rgba(255,255,255,0.85);
+  max-width: 100%;
+  margin-bottom: 8px;
+}
+
+/* ═══ JOURNEY TIMELINE ═══ */
+.journey-wrap {
+  position: relative;
+  padding-left: 44px;
+}
+/* Vertical line */
+.journey-wrap::before {
+  content: '';
+  position: absolute;
+  left: 12px;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    var(--border-2) 8%,
+    var(--border-2) 92%,
+    transparent 100%
+  );
+}
+
+.day-block {
+  position: relative;
+  margin-bottom: 40px;
+}
+.day-block:last-child { margin-bottom: 0; }
+
+/* Day marker */
+.day-marker {
+  position: absolute;
+  left: -44px;
+  top: 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.day-dot {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--ink-2);
+  border: 2px solid var(--gold);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+  box-shadow: 0 0 12px rgba(201,168,76,0.35);
+}
+.day-dot-inner {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--gold);
+}
+
+.day-header {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding-top: 0;
+}
+.day-label {
+  font-family: var(--font-serif);
+  font-size: 18px;
+  color: var(--gold-light);
+}
+.day-subtitle {
+  font-size: 12px;
+  color: rgba(255,255,255,0.6);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.sightseeing-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr));
+  gap: 16px;
+}
+
+/* When only 1 card exists, make it full width with taller image */
+.sightseeing-cards.cards-1 {
+  grid-template-columns: 1fr;
+}
+.sightseeing-cards.cards-1 .sight-card-img,
+.sightseeing-cards.cards-1 .sight-card-img-placeholder {
+  height: 380px;
+}
+
+.sightseeing-cards.cards-2 {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.sightseeing-cards.cards-2 .sight-card-img,
+.sightseeing-cards.cards-2 .sight-card-img-placeholder {
+  height: 300px;
+}
+
+/* ═══ ITEM CARD (sightseeing) ═══ */
+.sight-card {
+  background: var(--ghost);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  transition: border-color 0.25s, transform 0.25s, box-shadow 0.25s;
+}
+.sight-card:hover {
+  border-color: var(--border);
+  transform: translateY(-4px);
+  box-shadow: 0 16px 48px rgba(0,0,0,0.4);
+}
+.sight-card-img {
+  width: 100%;
+  height: 240px;
+  object-fit: cover;
+  display: block;
+  background: var(--ink-2);
+  transition: transform 0.4s var(--transition);
+}
+
+.sight-card:hover .sight-card-img {
+  transform: scale(1.04);
+}
+
+.sight-card-img-placeholder {
+  width: 100%;
+  height: 240px;
+  background: linear-gradient(135deg, var(--ink-2) 0%, var(--ink-3) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 48px;
+  color: rgba(255,255,255,0.12);
+}
+.sight-card-body {
+  padding: 16px 18px 18px;
+}
+.sight-card-type {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin-bottom: 6px;
+}
+.sight-card-name {
+  font-family: var(--font-serif);
+  font-size: 18px;
+  font-weight: 400;
+  color: var(--white);
+  margin-bottom: 6px;
+}
+.sight-card-desc {
+  font-size: 13px;
+  color: rgba(255,255,255,0.75);
+  line-height: 1.6;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.sight-card-tags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+.sight-tag {
+  font-size: 10px;
+  background: rgba(255,255,255,0.12);
+  border-radius: 100px;
+  padding: 3px 9px;
+  color: rgba(255,255,255,0.7);
+}
+
+/* "No day assigned" bucket */
+.unscheduled-label {
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.25);
+  margin-bottom: 12px;
+}
+
+/* ═══ HOTEL SECTION ═══ */
+.hotel-card {
+  background: var(--ghost);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition: border-color 0.25s, transform 0.25s, box-shadow 0.25s;
+}
+.hotel-card:hover {
+  border-color: var(--border);
+  transform: translateY(-4px);
+  box-shadow: 0 16px 48px rgba(0,0,0,0.4);
+}
+.hotel-card-img-wrap {
+  width: 100%;
+  height: 240px;
+  flex-shrink: 0;
+  position: relative;
+  overflow: hidden;
+}
+.hotel-card-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  background: var(--ink-2);
+  transition: transform 0.4s var(--transition);
+}
+.hotel-card:hover .hotel-card-img {
+  transform: scale(1.04);
+}
+.hotel-card-img-placeholder {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, var(--ink-2) 0%, var(--ink-3) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 48px;
+  color: rgba(255,255,255,0.1);
+}
+.hotel-card-body {
+  padding: 22px 24px 24px;
+  flex: 1;
+}
+.hotel-card-badge {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin-bottom: 8px;
+}
+.hotel-card-name {
+  font-family: var(--font-serif);
+  font-size: 22px;
+  font-weight: 400;
+  color: var(--white);
+  margin-bottom: 6px;
+}
+.hotel-stars {
+  color: var(--gold);
+  font-size: 13px;
+  margin-bottom: 10px;
+  letter-spacing: 2px;
+}
+.hotel-card-desc {
+  font-size: 13px;
+  color: rgba(255,255,255,0.7);
+  line-height: 1.65;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.hotel-card-meta {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+.hotel-meta-tag {
+  font-size: 11px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 100px;
+  padding: 3px 10px;
+  color: rgba(255,255,255,0.4);
+}
+
+/* ═══ TRANSPORT / ADDON GRID ═══ */
+.hotel-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr));
+  gap: 16px;
+}
+.hotel-grid.cards-1 {
+  grid-template-columns: 1fr;
+}
+.hotel-grid.cards-1 .hotel-card-img-wrap {
+  height: 380px;
+}
+.hotel-grid.cards-2 {
+  grid-template-columns: repeat(2, 1fr);
+}
+.hotel-grid.cards-2 .hotel-card-img-wrap {
+  height: 300px;
+}
+.logistics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 14px;
+}
+.logistics-card {
+  background: var(--ghost);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  transition: border-color 0.25s, transform 0.25s;
+}
+.logistics-card:hover {
+  border-color: var(--border);
+  transform: translateY(-2px);
+}
+.logistics-card-img {
+  width: 100%;
+  height: 130px;
+  object-fit: cover;
+  display: block;
+  background: var(--ink-2);
+}
+.logistics-card-img-placeholder {
+  width: 100%;
+  height: 130px;
+  background: linear-gradient(135deg, var(--ink-2) 0%, var(--ink-3) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  color: rgba(255,255,255,0.1);
+}
+.logistics-card-body {
+  padding: 14px 16px 16px;
+}
+.logistics-card-type {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin-bottom: 5px;
+}
+.logistics-card-name {
+  font-family: var(--font-serif);
+  font-size: 17px;
+  font-weight: 400;
+  color: var(--white);
+  margin-bottom: 5px;
+}
+.logistics-card-desc {
+  font-size: 12px;
+  color: rgba(255,255,255,0.4);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ═══ CTA BAR ═══ */
+.pkg-cta-bar {
+  background: linear-gradient(135deg, rgba(201,168,76,0.08) 0%, rgba(201,168,76,0.04) 100%);
+  border: 1px solid var(--border-2);
+  border-radius: var(--radius-lg);
+  padding: 28px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+  margin-top: 52px;
+  position: relative;
+  overflow: hidden;
+}
+.pkg-cta-bar::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  width: 200px;
+  height: 2px;
+  background: linear-gradient(90deg, var(--gold), transparent);
+}
+.pkg-cta-price-label {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.35);
+  margin-bottom: 6px;
+}
+.pkg-cta-price {
+  font-family: var(--font-serif);
+  font-size: 34px;
+  color: var(--gold-light);
+  line-height: 1;
+}
+.pkg-cta-price-sub {
+  font-size: 11px;
+  color: rgba(255,255,255,0.3);
+  margin-top: 4px;
+}
+.pkg-cta-btn {
+  background: linear-gradient(135deg, var(--gold) 0%, #a07830 100%);
+  color: var(--white);
+  border: none;
+  border-radius: 100px;
+  padding: 14px 38px;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  transition: opacity 0.2s, transform 0.2s, box-shadow 0.2s;
+  text-decoration: none;
+  display: inline-block;
+  letter-spacing: 0.01em;
+  box-shadow: 0 4px 20px rgba(201,168,76,0.25);
+}
+.pkg-cta-btn:hover {
+  opacity: 0.92;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 32px rgba(201,168,76,0.35);
+}
+
+/* ═══ SKELETON ═══ */
+.skeleton {
+  background: linear-gradient(90deg, var(--ghost) 25%, var(--ghost-2) 50%, var(--ghost) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s infinite;
+  border-radius: var(--radius-sm);
+}
+@keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+
+/* ═══ ERROR STATE ═══ */
+.error-state {
+  text-align: center;
+  padding: 100px 40px;
+  color: rgba(255,255,255,0.35);
+}
+.error-state .icon { font-size: 52px; margin-bottom: 16px; }
+.error-state .title { font-family: var(--font-serif); font-size: 26px; color: var(--white); margin-bottom: 8px; }
+
+/* ═══ FADE IN ANIMATION ═══ */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fade-in { animation: fadeUp 0.6s cubic-bezier(0.16,1,0.3,1) both; }
+.fade-in-1 { animation-delay: 0.1s; }
+.fade-in-2 { animation-delay: 0.2s; }
+.fade-in-3 { animation-delay: 0.3s; }
+
+/* ═══ RESPONSIVE ═══ */
+@media (max-width: 1100px) {
+  .sightseeing-cards { grid-template-columns: repeat(2, 1fr); }
+  .hotel-grid { grid-template-columns: repeat(2, 1fr); }
+  .sightseeing-cards.cards-1 { grid-template-columns: 1fr; }
+  .hotel-grid.cards-1 { grid-template-columns: 1fr; }
+}
+@media (max-width: 768px) {
+  .nav { padding: 0 20px; }
+  .pkg-hero-content { padding: 36px 20px 32px; }
+  .pkg-body { padding: 36px 20px 60px; }
+  .hotel-card-img-wrap { height: 220px !important; }
+  .hotel-card-img { height: 220px; }
+  .hotel-card-img-placeholder { height: 220px; }
+  .pkg-cta-bar { flex-direction: column; align-items: flex-start; }
+  .pkg-cta-btn { width: 100%; text-align: center; }
+  .sightseeing-cards,
+  .sightseeing-cards.cards-1,
+  .sightseeing-cards.cards-2 { grid-template-columns: 1fr; }
+  .hotel-grid,
+  .hotel-grid.cards-1,
+  .hotel-grid.cards-2 { grid-template-columns: 1fr; }
+  .sightseeing-cards.cards-1 .sight-card-img,
+  .sightseeing-cards.cards-1 .sight-card-img-placeholder { height: 240px; }
+  .hotel-grid.cards-1 .hotel-card-img-wrap { height: 240px !important; }
+  .logistics-grid { grid-template-columns: 1fr; }
+  .journey-wrap { padding-left: 28px; }
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a class="nav-logo" href="/">
+    <div class="nav-logo-dot"></div>
+    VoyageAI
+  </a>
+  <a class="nav-back" href="/">← Back to Search</a>
+</nav>
+
+<!-- Hero (skeleton until loaded) -->
+<div id="pkgHeroWrap">
+  <div class="pkg-hero" style="min-height:420px;">
+    <div class="pkg-hero-content">
+      <div class="skeleton" style="width:120px;height:12px;margin-bottom:18px;border-radius:100px"></div>
+      <div class="skeleton" style="width:65%;height:52px;margin-bottom:14px;border-radius:8px"></div>
+      <div class="skeleton" style="width:45%;height:17px;margin-bottom:28px;border-radius:100px"></div>
+      <div style="display:flex;gap:10px">
+        <div class="skeleton" style="width:110px;height:30px;border-radius:100px"></div>
+        <div class="skeleton" style="width:130px;height:30px;border-radius:100px"></div>
+        <div class="skeleton" style="width:120px;height:30px;border-radius:100px"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Body (skeleton until loaded) -->
+<div class="pkg-body" id="pkgBody">
+  <div style="display:flex;flex-direction:column;gap:14px">
+    <div class="skeleton" style="height:14px;width:60%"></div>
+    <div class="skeleton" style="height:14px;width:80%"></div>
+    <div class="skeleton" style="height:14px;width:50%"></div>
+  </div>
+</div>
+
+<script>
+// Support both /package/123 path AND ?id=123 query param (static file serving)
+const _urlMatch = window.location.pathname.match(/\/package\/(\d+)/);
+const _qParam   = new URLSearchParams(window.location.search).get('id');
+const PACKAGE_ID = _urlMatch ? parseInt(_urlMatch[1]) : (_qParam ? parseInt(_qParam) : null);
+
+// ─── Type icons / labels ────────────────────────────────────────────────────
+const TYPE_ICON = {
+  destination:  '🏔',
+  sightseeing:  '🎭',
+  hotel:        '🏨',
+  transport:    '🚌',
+  addon:        '➕',
+  cab:          '🚗',
+};
+const TYPE_LABEL = {
+  destination:  'Destination',
+  sightseeing:  'Sightseeing',
+  hotel:        'Hotel',
+  transport:    'Transport',
+  addon:        'Add-on',
+  cab:          'Cab',
+};
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
+function imgOrPlaceholder(src, cls, placeholder, style='') {
+  if (src) {
+    return `<img class="${cls}" src="${src}" alt="" loading="lazy" onerror="this.replaceWith(makePlaceholder('${placeholder}','${cls}'))" ${style}>`;
+  }
+  return `<div class="${cls.replace('-img','-img-placeholder')}" ${style}>${placeholder}</div>`;
+}
+
+function makePlaceholder(icon, cls) {
+  const el = document.createElement('div');
+  el.className = cls.replace('-img', '-img-placeholder');
+  el.textContent = icon;
+  return el;
+}
+
+function escHtml(str) {
+  if (!str) return '';
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ─── Render sightseeing item card ───────────────────────────────────────────
+function renderSightCard(item) {
+  const icon = TYPE_ICON[item.type] || '📍';
+  const label = TYPE_LABEL[item.type] || item.type;
+  const name = escHtml(item.display_name || item.name || 'Unknown');
+  const desc = escHtml(item.info || item.description || '');
+  const photo = item.photo || item.image_url || '';
+  const tags = [];
+  if (item.best_time) tags.push(`Best: ${item.best_time}`);
+  if (item.duration_days) tags.push(`${item.duration_days}D`);
+  if (item.city) tags.push(item.city);
+
+  const imgHtml = photo
+    ? `<img class="sight-card-img" src="${escHtml(photo)}" alt="${name}" loading="lazy" onerror="this.outerHTML='<div class=sight-card-img-placeholder>${icon}</div>'">`
+    : `<div class="sight-card-img-placeholder">${icon}</div>`;
+
+  return `
+    <div class="sight-card fade-in">
+      ${imgHtml}
+      <div class="sight-card-body">
+        <div class="sight-card-type">${icon} ${label}</div>
+        <div class="sight-card-name">${name}</div>
+        ${desc ? `<div class="sight-card-desc">${desc}</div>` : ''}
+        ${tags.length ? `<div class="sight-card-tags">${tags.map(t=>`<span class="sight-tag">${escHtml(t)}</span>`).join('')}</div>` : ''}
+      </div>
+    </div>`;
+}
+
+// ─── Render hotel card ───────────────────────────────────────────────────────
+function renderHotelCard(item) {
+  const name = escHtml(item.display_name || item.name || 'Hotel');
+  const desc = escHtml(item.info || item.description || '');
+  const photo = item.photo || item.image_url || '';
+  const stars = item.star_rating ? '★'.repeat(parseInt(item.star_rating)) + '☆'.repeat(Math.max(0, 5-parseInt(item.star_rating))) : '';
+  const tags = [];
+  if (item.city) tags.push(item.city);
+  if (item.amenities) {
+    const am = typeof item.amenities === 'string' ? item.amenities.split(',').slice(0,3) : (item.amenities||[]).slice(0,3);
+    am.forEach(a => tags.push(a.trim()));
+  }
+
+  const imgHtml = photo
+    ? `<img class="hotel-card-img" src="${escHtml(photo)}" alt="${name}" loading="lazy" onerror="this.outerHTML='<div class=hotel-card-img-placeholder>🏨</div>'">`
+    : `<div class="hotel-card-img-placeholder">🏨</div>`;
+
+  return `
+    <div class="hotel-card fade-in">
+      <div class="hotel-card-img-wrap">${imgHtml}</div>
+      <div class="hotel-card-body">
+        <div class="hotel-card-badge">🏨 Hotel Stay</div>
+        <div class="hotel-card-name">${name}</div>
+        ${stars ? `<div class="hotel-stars">${stars}</div>` : ''}
+        ${desc ? `<div class="hotel-card-desc">${desc}</div>` : ''}
+        ${tags.length ? `<div class="hotel-card-meta">${tags.map(t=>`<span class="hotel-meta-tag">${escHtml(t)}</span>`).join('')}</div>` : ''}
+      </div>
+    </div>`;
+}
+
+// ─── Render logistics card (transport / cab / addon) ─────────────────────────
+function renderLogisticsCard(item) {
+  const icon = TYPE_ICON[item.type] || '📦';
+  const label = TYPE_LABEL[item.type] || item.type;
+  const name = escHtml(item.display_name || item.name || 'Item');
+  const desc = escHtml(item.info || item.description || '');
+  const photo = item.photo || item.image_url || '';
+
+  const imgHtml = photo
+    ? `<img class="logistics-card-img" src="${escHtml(photo)}" alt="${name}" loading="lazy" onerror="this.outerHTML='<div class=logistics-card-img-placeholder>${icon}</div>'">`
+    : `<div class="logistics-card-img-placeholder">${icon}</div>`;
+
+  return `
+    <div class="logistics-card fade-in">
+      ${imgHtml}
+      <div class="logistics-card-body">
+        <div class="logistics-card-type">${icon} ${label}</div>
+        <div class="logistics-card-name">${name}</div>
+        ${desc ? `<div class="logistics-card-desc">${desc}</div>` : ''}
+      </div>
+    </div>`;
+}
+
+// ─── Render journey (day-wise sightseeing) ───────────────────────────────────
+function cardsClass(items) {
+  const n = Array.isArray(items) ? items.length : 1;
+  if (n === 1) return 'sightseeing-cards cards-1';
+  if (n === 2) return 'sightseeing-cards cards-2';
+  return 'sightseeing-cards';
+}
+
+function renderJourney(sightseeingItems) {
+  // Group by day
+  const byDay = {};
+  const unscheduled = [];
+  for (const item of sightseeingItems) {
+    const d = item.day;
+    if (d != null && d !== '' && !isNaN(parseInt(d))) {
+      const key = parseInt(d);
+      if (!byDay[key]) byDay[key] = [];
+      byDay[key].push(item);
+    } else {
+      unscheduled.push(item);
+    }
+  }
+
+  const days = Object.keys(byDay).map(Number).sort((a,b)=>a-b);
+  let html = '';
+
+  // If everything is unscheduled, auto-assign each item its own day sequentially
+  if (days.length === 0 && unscheduled.length > 0) {
+    html += `<div class="journey-wrap">`;
+    unscheduled.forEach((item, idx) => {
+      html += `
+      <div class="day-block">
+        <div class="day-marker"><div class="day-dot"><div class="day-dot-inner"></div></div></div>
+        <div class="day-header">
+          <span class="day-label">Day ${idx + 1}</span>
+          <span class="day-subtitle">${item.type === 'destination' ? 'Destination' : 'Sightseeing'}</span>
+        </div>
+        <div class="sightseeing-cards cards-1">${renderSightCard(item)}</div>
+      </div>`;
+    });
+    html += `</div>`;
+    return html;
+  }
+
+  html += `<div class="journey-wrap">`;
+
+  for (const d of days) {
+    const dayItems = byDay[d];
+    html += `
+      <div class="day-block">
+        <div class="day-marker"><div class="day-dot"><div class="day-dot-inner"></div></div></div>
+        <div class="day-header">
+          <span class="day-label">Day ${d}</span>
+          <span class="day-subtitle">Sightseeing</span>
+        </div>
+        <div class="${cardsClass(dayItems)}">${dayItems.map(renderSightCard).join('')}</div>
+      </div>`;
+  }
+
+  if (unscheduled.length) {
+    html += `
+      <div class="day-block">
+        <div class="day-marker"><div class="day-dot" style="border-color:rgba(255,255,255,0.3)"><div class="day-dot-inner" style="background:rgba(255,255,255,0.3)"></div></div></div>
+        <div class="day-header">
+          <span class="day-label" style="color:rgba(255,255,255,0.4)">Flexible</span>
+          <span class="day-subtitle">Not scheduled to a specific day</span>
+        </div>
+        <div class="${cardsClass(unscheduled)}">${unscheduled.map(renderSightCard).join('')}</div>
+      </div>`;
+  }
+
+  html += `</div>`; // journey-wrap
+  return html;
+}
+
+// ─── Section header html ─────────────────────────────────────────────────────
+function sectionHead(icon, label) {
+  return `
+    <div class="section-head">
+      <div class="section-icon">${icon}</div>
+      <div class="section-label">${label}</div>
+      <div class="section-head-line"></div>
+    </div>`;
+}
+
+// ─── Main load ───────────────────────────────────────────────────────────────
+(async function loadPackage() {
+  if (!PACKAGE_ID) {
+    document.getElementById('pkgBody').innerHTML = `<div class="error-state"><div class="icon">🗺</div><div class="title">No package specified</div></div>`;
+    return;
+  }
+  try {
+    const res = await fetch(`/api/trending-packages/${PACKAGE_ID}?client_id=1`);
+    if (!res.ok) throw new Error('Not found');
+    const pkg = await res.json();
+
+    // ── Hero ─────────────────────────────────────────────────────────────────
+    const heroWrap = document.getElementById('pkgHeroWrap');
+    const heroImages = pkg.gallery_images && pkg.gallery_images.length
+      ? pkg.gallery_images
+      : (pkg.image_url ? [pkg.image_url] : []);
+
+    let imgHtml = '';
+    if (heroImages.length > 1) {
+      // Slideshow hero
+      imgHtml = heroImages.map((url, i) =>
+        `<img class="pkg-hero-img" src="${escHtml(url)}" alt="${escHtml(pkg.name)}" style="opacity:${i===0?'0.72':'0'};transition:opacity 1.2s ease" data-hero-slide>`
+      ).join('');
+    } else if (heroImages.length === 1) {
+      imgHtml = `<img class="pkg-hero-img" src="${escHtml(heroImages[0])}" alt="${escHtml(pkg.name)}">`;
+    }
+
+    const durationStr = pkg.duration_days ? `${pkg.duration_days} Nights · ${pkg.duration_days + 1} Days` : '';
+    const priceStr    = pkg.price_from ? `₹${Number(pkg.price_from).toLocaleString('en-IN')}` : null;
+    const items       = pkg.items_detail || [];
+
+    // Count different types for pills
+    const sightsTotal = items.filter(i => ['sightseeing','destination'].includes(i.type)).length;
+    const hotelTotal  = items.filter(i => i.type === 'hotel').length;
+
+    heroWrap.innerHTML = `
+      <div class="pkg-hero">
+        ${imgHtml}
+        <div class="pkg-hero-gradient"></div>
+        <div class="pkg-hero-content fade-in">
+          <div class="pkg-hero-eyebrow">
+            <div class="pkg-hero-eyebrow-line"></div>
+            <div class="pkg-hero-tag">✦ Curated Experience</div>
+          </div>
+          <h1 class="pkg-hero-title">${escHtml(pkg.name)}</h1>
+          ${pkg.tagline ? `<div class="pkg-hero-tagline">${escHtml(pkg.tagline)}</div>` : ''}
+          <div class="pkg-meta-pills">
+            ${durationStr ? `<div class="pkg-meta-pill">🌙 <span class="val">${durationStr}</span></div>` : ''}
+            ${priceStr    ? `<div class="pkg-meta-pill">₹ From <span class="val">${priceStr}</span></div>` : ''}
+            ${sightsTotal ? `<div class="pkg-meta-pill">📍 <span class="val">${sightsTotal} Sightseeing</span></div>` : ''}
+            ${hotelTotal  ? `<div class="pkg-meta-pill">🏨 <span class="val">${hotelTotal} Hotel</span></div>` : ''}
+          </div>
+        </div>
+      </div>`;
+
+    // Hero slideshow auto-rotate
+    if (heroImages.length > 1) {
+      const slides = heroWrap.querySelectorAll('[data-hero-slide]');
+      let hIdx = 0;
+      setInterval(() => {
+        slides[hIdx].style.opacity = '0';
+        hIdx = (hIdx + 1) % slides.length;
+        slides[hIdx].style.opacity = '0.72';
+      }, 4000);
+    }
+
+    // ── Categorise items ──────────────────────────────────────────────────────
+    const sightseeingItems = items.filter(i => ['sightseeing','destination'].includes(i.type));
+    const hotelItems       = items.filter(i => i.type === 'hotel');
+    const logisticsItems   = items.filter(i => ['transport','cab','addon'].includes(i.type));
+
+    let bodyHtml = '';
+
+    // About
+    if (pkg.description) {
+      bodyHtml += `
+        ${sectionHead('✦', 'About This Package')}
+        <div class="pkg-about fade-in fade-in-1">${escHtml(pkg.description)}</div>`;
+    }
+
+    // Day-wise sightseeing
+    if (sightseeingItems.length) {
+      bodyHtml += sectionHead('🗺', 'Your Journey');
+      bodyHtml += renderJourney(sightseeingItems);
+    }
+
+    // Hotels
+    if (hotelItems.length) {
+      bodyHtml += sectionHead('🏨', 'Where You\'ll Stay');
+      const hotelGridClass = hotelItems.length === 1 ? 'hotel-grid cards-1' : hotelItems.length === 2 ? 'hotel-grid cards-2' : 'hotel-grid';
+      bodyHtml += `<div class="${hotelGridClass}">${hotelItems.map(renderHotelCard).join('')}</div>`;
+    }
+
+    // Transport / Cabs / Addons
+    if (logisticsItems.length) {
+      bodyHtml += sectionHead('🚌', 'Getting Around & Extras');
+      bodyHtml += `<div class="logistics-grid">${logisticsItems.map(renderLogisticsCard).join('')}</div>`;
+    }
+
+    // CTA bar
+    bodyHtml += `
+      <div class="pkg-cta-bar fade-in">
+        <div>
+          <div class="pkg-cta-price-label">Package starts from</div>
+          <div class="pkg-cta-price">${priceStr || 'Custom Quote'}</div>
+          ${priceStr ? '<div class="pkg-cta-price-sub">per person · taxes extra · subject to availability</div>' : ''}
+        </div>
+        <a class="pkg-cta-btn" href="/">📞 Book This Package</a>
+      </div>`;
+
+    document.getElementById('pkgBody').innerHTML = bodyHtml;
+    document.title = `${pkg.name} — VoyageAI`;
+
+  } catch(e) {
+    document.getElementById('pkgHeroWrap').innerHTML = '';
+    document.getElementById('pkgBody').innerHTML = `
+      <div class="error-state">
+        <div class="icon">🏖</div>
+        <div class="title">Package not found</div>
+        <p>This package may have been removed or the link is incorrect.</p>
+        <br>
+        <a href="/" class="pkg-cta-btn">← Go back to search</a>
+      </div>`;
+  }
+})();
+</script>
+</body>
+</html>
