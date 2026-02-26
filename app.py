@@ -1596,6 +1596,12 @@ def _send_email_notification(to_address: str, subject: str, html_body: str) -> b
             logger.error(f"Resend API exception: {exc} — falling back to SMTP")
 
     # ── Strategy 2: SMTP port 465 SSL ─────────────────────────────────────────
+    # Render free tier blocks SMTP ports — SMTP is disabled by default.
+    # Set DISABLE_SMTP=false in env only if you have a non-Render SMTP server.
+    if os.environ.get('DISABLE_SMTP', 'true').lower() != 'false':
+        logger.error("SMTP disabled (Render blocks SMTP ports). Set RESEND_API_KEY for email delivery.")
+        return False
+
     smtp_host = os.environ.get('SMTP_HOST', 'smtp.gmail.com')
     smtp_pass = os.environ.get('SMTP_PASSWORD', '').strip().replace(' ', '')
     from_email = os.environ.get('FROM_EMAIL', smtp_user).strip() or smtp_user
@@ -1613,7 +1619,7 @@ def _send_email_notification(to_address: str, subject: str, html_body: str) -> b
     try:
         logger.info(f"SMTP attempt port 465 — user={smtp_user!r} to={to_address!r}")
         ctx = _ssl.create_default_context()
-        with _smtplib.SMTP_SSL(smtp_host, 465, context=ctx, timeout=15) as server:
+        with _smtplib.SMTP_SSL(smtp_host, 465, context=ctx, timeout=5) as server:
             server.login(smtp_user, smtp_pass)
             server.sendmail(from_email, [to_address], msg.as_string())
         logger.info(f"✅ Email sent via SMTP port 465 to {to_address}")
@@ -1627,7 +1633,7 @@ def _send_email_notification(to_address: str, subject: str, html_body: str) -> b
     # ── Strategy 3: SMTP port 587 STARTTLS ────────────────────────────────────
     try:
         logger.info(f"SMTP attempt port 587 — user={smtp_user!r} to={to_address!r}")
-        with _smtplib.SMTP(smtp_host, 587, timeout=15) as server:
+        with _smtplib.SMTP(smtp_host, 587, timeout=5) as server:
             server.ehlo()
             server.starttls()
             server.ehlo()
