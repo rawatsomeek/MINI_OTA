@@ -3620,27 +3620,13 @@ function renderHotelImage(hotel) {
   // For live/amadeus hotels: show loading placeholder, then fetch from Google
   const cardId = `gallery_${hotel.hotel_id || hotel.hotel_name?.replace(/\s+/g,'_') || Math.random().toString(36).slice(2)}`;
   const hotelCity = hotel.city || hotel.city_code || '';
+  const hotelNameForFetch = hotel.hotel_name || '';
+  const isGeneric = !hotelNameForFetch || hotelNameForFetch.toLowerCase() === 'hotel' || hotelNameForFetch.length < 4;
 
-  // Trigger async photo fetch — use best available name
-  setTimeout(async () => {
-    const el = document.getElementById(cardId);
-    if (!el) return;
-    // Try specific name first; if generic, fallback to "hotel in city"
-    const name = hotel.hotel_name || '';
-    const isGeneric = !name || name.toLowerCase() === 'hotel' || name.length < 4;
-    if (isGeneric) {
-      el.innerHTML = `<div class="gallery-placeholder">🏨</div>`;
-      return;
-    }
-    const searchName = name;
-    const photos = await fetchGooglePhotos(searchName, hotelCity);
-    if (photos.length > 0) {
-      el.innerHTML = buildGalleryHTML(photos, 'google', hotel);
-    } else {
-      // No fallback — wrong photos worse than no photos
-      el.innerHTML = `<div class="gallery-placeholder">🏨</div><span class="photo-source-tag" style="opacity:0.5">No photos available</span>`;
-    }
-  }, 50);
+  // Queue photo load — runs after grid is fully painted
+  if (!isGeneric) {
+    _queuePhotoLoad(cardId, hotelNameForFetch, hotelCity, hotel);
+  }
 
   return `<div id="${cardId}" class="hotel-gallery" style="height:100%">
     <div class="gallery-loading">
@@ -3648,6 +3634,42 @@ function renderHotelImage(hotel) {
       <div style="font-size:11px;color:rgba(255,255,255,0.2)">Loading photos...</div>
     </div>
   </div>`;
+}
+
+// Photo load queue — batched after grid renders, with stagger to avoid API hammering
+let _photoQueue = [];
+let _photoQueueTimer = null;
+
+function _queuePhotoLoad(cardId, hotelName, city, hotel) {
+  _photoQueue.push({ cardId, hotelName, city, hotel });
+  // Debounce — wait 300ms after last card added, then load all
+  clearTimeout(_photoQueueTimer);
+  _photoQueueTimer = setTimeout(_flushPhotoQueue, 300);
+}
+
+async function _flushPhotoQueue() {
+  const queue = [..._photoQueue];
+  _photoQueue = [];
+  // Load all hotels photos in parallel
+  await Promise.all(queue.map(async ({ cardId, hotelName, city, hotel }, idx) => {
+    // Stagger requests slightly to avoid hammering Google API
+    await new Promise(r => setTimeout(r, idx * 120));
+    const el = document.getElementById(cardId);
+    if (!el) return; // card unmounted
+    try {
+      const photos = await fetchGooglePhotos(hotelName, city);
+      const el2 = document.getElementById(cardId); // re-check after await
+      if (!el2) return;
+      if (photos.length > 0) {
+        el2.innerHTML = buildGalleryHTML(photos, 'google', hotel);
+      } else {
+        el2.innerHTML = `<div class="gallery-placeholder">🏨</div>`;
+      }
+    } catch(e) {
+      const el2 = document.getElementById(cardId);
+      if (el2) el2.innerHTML = `<div class="gallery-placeholder">🏨</div>`;
+    }
+  }));
 }
 
 function buildGalleryHTML(images, source, hotel) {
