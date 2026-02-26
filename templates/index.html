@@ -3628,18 +3628,17 @@ function renderHotelImage(hotel) {
     // Try specific name first; if generic, fallback to "hotel in city"
     const name = hotel.hotel_name || '';
     const isGeneric = !name || name.toLowerCase() === 'hotel' || name.length < 4;
-    const searchName = isGeneric ? `hotel ${hotelCity}` : name;
+    if (isGeneric) {
+      el.innerHTML = `<div class="gallery-placeholder">🏨</div>`;
+      return;
+    }
+    const searchName = name;
     const photos = await fetchGooglePhotos(searchName, hotelCity);
     if (photos.length > 0) {
       el.innerHTML = buildGalleryHTML(photos, 'google', hotel);
-    } else if (!isGeneric) {
-      // Retry with generic city search
-      const fallback = await fetchGooglePhotos(`hotel ${hotelCity}`, hotelCity);
-      el.innerHTML = fallback.length
-        ? buildGalleryHTML(fallback, 'google', hotel)
-        : `<div class="gallery-placeholder">🏨</div><span class="photo-source-tag">No photos</span>`;
     } else {
-      el.innerHTML = `<div class="gallery-placeholder">🏨</div><span class="photo-source-tag">No photos</span>`;
+      // No fallback — wrong photos worse than no photos
+      el.innerHTML = `<div class="gallery-placeholder">🏨</div><span class="photo-source-tag" style="opacity:0.5">No photos available</span>`;
     }
   }, 50);
 

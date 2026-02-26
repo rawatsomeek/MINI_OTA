@@ -6905,6 +6905,19 @@ def google_hotel_photos():
             logger.warning(f"fetch_place error query={query!r}: {e}")
             return empty
 
+    def _names_match(search_name, result_name):
+        """Strict match — prevents wrong hotel photos being shown."""
+        import re as _re
+        stop = {'hotel', 'the', 'and', 'by', 'inn', 'a', 'of', 'at', 'in', '&', 'spa', 'resort'}
+        def sig_words(s):
+            words = _re.sub(r'[^\w\s]', ' ', s.lower()).split()
+            return {w for w in words if w not in stop and len(w) > 2}
+        sw = sig_words(search_name)
+        rw = sig_words(result_name)
+        if not sw:
+            return False
+        return len(sw & rw) / len(sw) >= 0.4
+
     try:
         is_generic = len(hotel_name) < 4 or hotel_name.lower() == 'hotel'
         photos, rating, n_ratings, reviews, place_name = [], None, None, [], ''
@@ -6913,10 +6926,15 @@ def google_hotel_photos():
             photos, rating, n_ratings, reviews, place_name = fetch_place(
                 f"{hotel_name} {city}".strip()
             )
+            # Strict check — discard if returned name doesn't match our hotel
+            if place_name and not _names_match(hotel_name, place_name):
+                logger.warning(
+                    f"google_hotel_photos: name mismatch — "
+                    f"searched={hotel_name!r} got={place_name!r} — discarding"
+                )
+                photos, rating, n_ratings, reviews, place_name = [], None, None, [], ''
 
-        # Fallback: generic city search
-        if not photos and city:
-            photos, rating, n_ratings, reviews, place_name = fetch_place(f"hotel {city}")
+        # NO generic city fallback — wrong photos worse than no photos
 
         logger.info(
             f"google_hotel_photos: {len(photos)} photos rating={rating} "
