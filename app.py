@@ -11229,13 +11229,12 @@ def last_minute_deals():
         row = cur.fetchone()
         fresh_count = row['cnt'] if row else 0
 
-        # If no fresh deals — trigger refresh inline (first time or stale)
+        # If no fresh deals — trigger refresh in background (avoid worker timeout)
         if fresh_count == 0:
-            logger.info("LM deals: no fresh data — triggering inline refresh")
-            db.close()
-            _do_refresh_lm_deals()
-            db = get_db()
-            cur = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            import threading
+            logger.info("LM deals: no fresh data — triggering background refresh")
+            t = threading.Thread(target=_do_refresh_lm_deals, daemon=True)
+            t.start()
 
         # Fetch best deals — cheapest per route, mix of flights + hotels
         cur.execute("""
@@ -11293,7 +11292,7 @@ def last_minute_deals():
         admin_deals = []
         try:
             db2 = get_db()
-            cur2 = db2.cursor()
+            cur2 = db2.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
             cur2.execute("""
                 SELECT * FROM trending_packages
                 WHERE active=TRUE AND deleted=FALSE
@@ -11344,145 +11343,172 @@ def last_minute_deals():
 @app.route('/api/surprise-trip', methods=['POST'])
 def surprise_trip():
     """
-    Surprise trip generator — user gives budget + vibe + dates,
-    AI picks the best destination + package combo they wouldn't expect.
+    Surprise trip generator — AI picks destination from DB packages + Amadeus live flights.
+    Returns a full bookable package, not just info.
     """
+    import random
     try:
         data = request.get_json() or {}
         budget = int(data.get('budget', 15000))
-        vibe = data.get('vibe', 'adventure')  # adventure, romantic, family, spiritual, chill
+        vibe = data.get('vibe', 'adventure')
         adults = int(data.get('adults', 2))
-        departure_date = data.get('departure_date', '')
         origin = data.get('origin', 'DEL')
         client_id = get_client_id()
 
-        # Get all available destinations + hotels from DB
+        # ── Step 1: Get admin packages from DB ─────────────────────────────
         db = get_db()
         cur = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cur.execute("SELECT * FROM destinations WHERE client_id=%s AND active=TRUE", (client_id,))
         destinations = cur.fetchall()
-        cur.execute("SELECT * FROM hotels WHERE client_id=%s AND active=TRUE", (client_id,))
-        hotels = cur.fetchall()
-        cur.execute("SELECT * FROM trending_packages WHERE client_id=%s AND active=TRUE AND deleted=FALSE", (client_id,))
+        cur.execute("""SELECT * FROM trending_packages
+                       WHERE client_id=%s AND active=TRUE AND deleted=FALSE
+                       ORDER BY display_order, created_at DESC""", (client_id,))
         packages = cur.fetchall()
         db.close()
 
-        # Build context for AI
         dest_list = ', '.join([f"{d['name']} ({d.get('destination_type','')})" for d in destinations])
-        hotel_list = ', '.join([h['name'] for h in hotels])
-        pkg_list = ', '.join([f"{p['name']} (₹{p.get('price_from',0)}/person)" for p in packages])
+        pkg_list  = ', '.join([f"{p['name']} (₹{p.get('price_from',0)}/person)" for p in packages])
 
+        # ── Step 2: Try to fetch a live Amadeus flight deal ─────────────────
+        from datetime import datetime, timedelta
+        amadeus_flight = None
+        try:
+            token = _get_amadeus_token()
+            base_url = _get_amadeus_base_url()
+            if token:
+                vibe_routes = {
+                    'adventure': [('DEL','SXR'),('DEL','IXL'),('DEL','ATQ')],
+                    'chill':     [('DEL','GOI'),('BOM','GOI')],
+                    'romantic':  [('DEL','GOI'),('DEL','COK')],
+                    'spiritual': [('DEL','ATQ'),('BOM','DEL')],
+                    'family':    [('DEL','BOM'),('DEL','BLR')],
+                }
+                routes = vibe_routes.get(vibe, [('DEL','GOI'),('DEL','BOM')])
+                random.shuffle(routes)
+                dep_date = (datetime.now() + timedelta(days=5)).strftime('%Y-%m-%d')
+                for orig_iata, dest_iata in routes:
+                    try:
+                        resp = _requests.get(
+                            f'{base_url}/v2/shopping/flight-offers',
+                            headers={'Authorization': f'Bearer {token}'},
+                            params={'originLocationCode': orig_iata,
+                                    'destinationLocationCode': dest_iata,
+                                    'departureDate': dep_date,
+                                    'adults': adults, 'max': 1,
+                                    'currencyCode': 'INR'},
+                            timeout=8,
+                        )
+                        if resp.ok:
+                            offers = resp.json().get('data', [])
+                            if offers:
+                                o = offers[0]
+                                price = float(o.get('price', {}).get('grandTotal', 0))
+                                seg = o.get('itineraries', [{}])[0].get('segments', [{}])[0]
+                                amadeus_flight = {
+                                    'origin': orig_iata,
+                                    'destination': dest_iata,
+                                    'price': price,
+                                    'airline': seg.get('carrierCode', ''),
+                                    'dep_date': dep_date,
+                                }
+                                break
+                    except Exception:
+                        continue
+        except Exception as fe:
+            logger.warning(f"Surprise trip Amadeus fetch: {fe}")
+
+        # ── Step 3: AI picks the best match ────────────────────────────────
         openai_key = os.environ.get('OPENAI_API_KEY', '').strip()
-        if not (OPENAI_AVAILABLE and openai_key):
-            # Fallback — pick random package
-            import random
-            if packages:
-                pkg = random.choice(packages)
-                return jsonify({
-                    'success': True,
-                    'surprise': {
-                        'destination': pkg['name'],
-                        'tagline': pkg.get('tagline', 'A perfect escape awaits!'),
-                        'reason': f"A handpicked {vibe} getaway perfectly suited for your group.",
-                        'package_id': pkg['id'],
-                        'image_url': pkg.get('image_url', ''),
-                        'price_from': float(pkg.get('price_from') or 0),
-                        'duration_days': pkg.get('duration_days', 3),
-                        'vibe': vibe,
-                        'included_items': pkg.get('included_items', []),
-                    }
-                }), 200
-            return jsonify({'success': False, 'error': 'No packages available'}), 200
+        ai_result  = None
 
-        # AI picks the surprise
-        oai = _OpenAI(api_key=openai_key, timeout=20.0, max_retries=0)
+        if OPENAI_AVAILABLE and openai_key and (packages or destinations):
+            try:
+                oai = _OpenAI(api_key=openai_key, timeout=20.0, max_retries=0)
+                vibe_desc = {
+                    'adventure': 'thrilling, outdoor, trekking, mountains',
+                    'romantic':  'intimate, scenic, couple-friendly',
+                    'family':    'kid-friendly, safe, fun for all ages',
+                    'spiritual': 'temples, peace, culture, heritage',
+                    'chill':     'relaxing, beaches, laid-back, peaceful',
+                }.get(vibe, vibe)
 
-        vibe_descriptions = {
-            'adventure': 'thrilling, outdoor activities, mountains, trekking, sports',
-            'romantic': 'intimate, scenic, couple-friendly, peaceful, beautiful sunsets',
-            'family': 'kid-friendly, safe, fun for all ages, comfortable',
-            'spiritual': 'temples, peace, spirituality, culture, heritage',
-            'chill': 'relaxing, beaches, laid-back, no rush, peaceful',
-        }
-        vibe_desc = vibe_descriptions.get(vibe, vibe)
+                flight_ctx = ''
+                if amadeus_flight:
+                    flight_ctx = f"\nLIVE FLIGHT AVAILABLE: {amadeus_flight['origin']} → {amadeus_flight['destination']} on {amadeus_flight['dep_date']} at ₹{int(amadeus_flight['price']):,} ({amadeus_flight['airline']})"
 
-        prompt = f"""You are a surprise travel curator. A user wants a surprise trip.
+                prompt = f"""You are a surprise travel curator. Pick ONE perfect trip.
 
-User profile:
-- Vibe: {vibe} ({vibe_desc})
-- Budget: ₹{budget} per person
-- Adults: {adults}
-- Origin: {origin}
+User: vibe={vibe} ({vibe_desc}), budget=₹{budget}/person, adults={adults}, origin={origin}
+PACKAGES: {pkg_list or 'None'}
+DESTINATIONS: {dest_list or 'Manali, Goa, Jaipur'}{flight_ctx}
 
-Available options:
-DESTINATIONS: {dest_list or 'Manali, Goa, Jaipur'}
-HOTELS: {hotel_list or 'Various hotels available'}
-PACKAGES: {pkg_list or 'Custom packages available'}
-
-Pick ONE perfect surprise destination that matches their vibe and budget.
-Make it feel exciting and unexpected. Give a compelling reason why THIS is perfect for them NOW.
+Rules:
+- If a live flight is available and fits budget, prefer that destination.
+- Suggest the exact package name if it fits.
+- Be exciting and specific — not generic.
 
 Respond ONLY in JSON:
-{{
-  "destination": "destination name",
-  "tagline": "one exciting line about this trip",
-  "reason": "2-3 sentences: why this is perfect for their vibe, what makes it special right now, what they'll experience",
-  "best_for": "what makes this trip unique",
-  "duration_days": 3,
-  "suggested_package_name": "name from packages list or null"
-}}"""
+{{"destination":"name","tagline":"one exciting line","reason":"2-3 sentences why perfect for them now","duration_days":3,"suggested_package_name":"exact name from PACKAGES or null"}}"""
 
-        resp = oai.chat.completions.create(
-            model='gpt-4o',
-            messages=[{'role': 'user', 'content': prompt}],
-            temperature=0.9,  # high creativity for surprise
-            max_tokens=300,
-        )
-        raw = resp.choices[0].message.content.strip()
-
-        # Parse AI response
-        ai_result = None
-        try:
-            ai_result = json.loads(raw)
-        except Exception:
-            m = re.search(r'\{[\s\S]*\}', raw)
-            if m:
+                resp = oai.chat.completions.create(
+                    model='gpt-4o',
+                    messages=[{'role': 'user', 'content': prompt}],
+                    temperature=0.85,
+                    max_tokens=250,
+                )
+                raw = resp.choices[0].message.content.strip()
                 try:
-                    ai_result = json.loads(m.group(0))
+                    ai_result = json.loads(raw)
                 except Exception:
-                    pass
+                    m = re.search(r'\{[\s\S]*\}', raw)
+                    if m:
+                        try: ai_result = json.loads(m.group(0))
+                        except Exception: pass
+            except Exception as ai_err:
+                logger.warning(f"Surprise trip AI error: {ai_err}")
 
+        # ── Step 4: Match to a real package ────────────────────────────────
+        matched_pkg = None
+        if ai_result and packages:
+            suggested_name = (ai_result.get('suggested_package_name') or '').lower()
+            for pkg in packages:
+                if suggested_name and (suggested_name in pkg['name'].lower() or pkg['name'].lower() in suggested_name):
+                    matched_pkg = pkg
+                    break
+        if not matched_pkg and packages:
+            matched_pkg = random.choice(packages)
+
+        # Fallback if no AI result
         if not ai_result:
             ai_result = {
-                'destination': destinations[0]['name'] if destinations else 'Manali',
-                'tagline': 'An unexpected escape awaits!',
-                'reason': 'A perfectly curated surprise trip just for you.',
-                'duration_days': 3,
+                'destination': matched_pkg['name'] if matched_pkg else (destinations[0]['name'] if destinations else 'Manali'),
+                'tagline': matched_pkg.get('tagline', 'An unexpected escape awaits!') if matched_pkg else 'An unexpected escape awaits!',
+                'reason': matched_pkg.get('description', 'A perfectly curated getaway just for you.') if matched_pkg else 'A perfectly curated getaway just for you.',
+                'duration_days': matched_pkg.get('duration_days', 3) if matched_pkg else 3,
             }
 
-        # Match to a real package if available
-        matched_pkg = None
-        suggested_name = (ai_result.get('suggested_package_name') or '').lower()
-        for pkg in packages:
-            if suggested_name and (suggested_name in pkg['name'].lower() or pkg['name'].lower() in suggested_name):
-                matched_pkg = pkg
-                break
-        if not matched_pkg and packages:
-            matched_pkg = packages[0]
+        # ── Step 5: Build response ──────────────────────────────────────────
+        price = float(matched_pkg.get('price_from') or 0) if matched_pkg else (amadeus_flight['price'] if amadeus_flight else 0)
+        included = matched_pkg.get('included_items', []) if matched_pkg else []
+        if isinstance(included, str):
+            try: included = json.loads(included)
+            except Exception: included = []
 
         return jsonify({
             'success': True,
             'surprise': {
-                'destination': ai_result.get('destination', ''),
-                'tagline': ai_result.get('tagline', ''),
-                'reason': ai_result.get('reason', ''),
-                'best_for': ai_result.get('best_for', ''),
+                'destination':   ai_result.get('destination', ''),
+                'tagline':       ai_result.get('tagline', ''),
+                'reason':        ai_result.get('reason', ''),
                 'duration_days': ai_result.get('duration_days', 3),
-                'package_id': matched_pkg['id'] if matched_pkg else None,
-                'image_url': matched_pkg['image_url'] if matched_pkg else '',
-                'price_from': float(matched_pkg.get('price_from') or 0) if matched_pkg else 0,
-                'vibe': vibe,
-                'included_items': matched_pkg.get('included_items', []) if matched_pkg else [],
+                'package_id':    matched_pkg['id'] if matched_pkg else None,
+                'package_name':  matched_pkg['name'] if matched_pkg else None,
+                'image_url':     matched_pkg.get('image_url', '') if matched_pkg else '',
+                'price_from':    price,
+                'price_str':     f"₹{int(price):,}/person" if price else '',
+                'vibe':          vibe,
+                'included_items': included,
+                'amadeus_flight': amadeus_flight,
             }
         }), 200
 
