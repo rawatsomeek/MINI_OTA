@@ -1734,6 +1734,26 @@ body::before {
 }
 
 
+
+/* ── MOBILE DATE INPUT FIX ─────────────────────────────────── */
+/* iOS Safari & Android: ensure native date picker triggers on tap */
+input[type="date"] {
+  -webkit-appearance: none;
+  appearance: none;
+}
+input[type="date"]::-webkit-calendar-picker-indicator {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+@media (max-width: 768px) {
+  input[type="date"] {
+    font-size: 16px !important; /* Prevents iOS zoom on focus */
+  }
+}
+
 /* ── SURPRISE BOOKING CARDS (flight + hotel) ───────────────── */
 .sp-booking-card {
   display: flex;
@@ -2305,7 +2325,7 @@ body::before {
 }
 .flight-type-btn:hover:not(.active) { color: rgba(255,255,255,0.8); }
 
-.date-field { cursor: pointer; position: relative; }
+.date-field { cursor: pointer; position: relative; overflow: hidden; -webkit-tap-highlight-color: transparent; }
 .date-field:hover { background: var(--ink-3); }
 
 /* Multi city leg row */
@@ -3005,12 +3025,12 @@ textarea {
             <div class="search-field date-field" onclick="openCal('checkInInput')">
               <div class="field-label">📅 Check In</div>
               <div class="field-value" id="checkInDisplay">Select date</div>
-              <input type="date" id="checkInInput" style="position:absolute;opacity:0;width:0;height:0" onchange="updateDateDisplay('checkInInput','checkInDisplay')">
+              <input type="date" id="checkInInput" style="position:absolute;opacity:0;width:100%;height:100%;top:0;left:0;cursor:pointer;font-size:16px" onchange="updateDateDisplay('checkInInput','checkInDisplay')">
             </div>
             <div class="search-field date-field" onclick="openCal('checkOutInput')">
               <div class="field-label">📅 Check Out</div>
               <div class="field-value" id="checkOutDisplay">Select date</div>
-              <input type="date" id="checkOutInput" style="position:absolute;opacity:0;width:0;height:0" onchange="updateDateDisplay('checkOutInput','checkOutDisplay')">
+              <input type="date" id="checkOutInput" style="position:absolute;opacity:0;width:100%;height:100%;top:0;left:0;cursor:pointer;font-size:16px" onchange="updateDateDisplay('checkOutInput','checkOutDisplay')">
             </div>
             <div class="search-field">
               <div class="field-label">👥 Travellers</div>
@@ -3063,12 +3083,12 @@ textarea {
             <div class="search-field date-field" onclick="openCal('pkgCheckInInput')">
               <div class="field-label">📅 Check In</div>
               <div class="field-value" id="pkgCheckInDisplay">Select date</div>
-              <input type="date" id="pkgCheckInInput" style="position:absolute;opacity:0;width:0;height:0" onchange="updateDateDisplay('pkgCheckInInput','pkgCheckInDisplay')">
+              <input type="date" id="pkgCheckInInput" style="position:absolute;opacity:0;width:100%;height:100%;top:0;left:0;cursor:pointer;font-size:16px" onchange="updateDateDisplay('pkgCheckInInput','pkgCheckInDisplay')">
             </div>
             <div class="search-field date-field" onclick="openCal('pkgCheckOutInput')">
               <div class="field-label">📅 Check Out</div>
               <div class="field-value" id="pkgCheckOutDisplay">Select date</div>
-              <input type="date" id="pkgCheckOutInput" style="position:absolute;opacity:0;width:0;height:0" onchange="updateDateDisplay('pkgCheckOutInput','pkgCheckOutDisplay')">
+              <input type="date" id="pkgCheckOutInput" style="position:absolute;opacity:0;width:100%;height:100%;top:0;left:0;cursor:pointer;font-size:16px" onchange="updateDateDisplay('pkgCheckOutInput','pkgCheckOutDisplay')">
             </div>
             <div class="search-field">
               <div class="field-label">👥 Travellers</div>
@@ -3101,12 +3121,12 @@ textarea {
               <div class="search-field date-field" onclick="openCal('pkgFlightDepInput')" style="border-radius:var(--radius-md)">
                 <div class="field-label">🛫 Departure Date</div>
                 <div class="field-value" id="pkgFlightDepDisplay">Select date</div>
-                <input type="date" id="pkgFlightDepInput" style="position:absolute;opacity:0;width:0;height:0" onchange="updateDateDisplay('pkgFlightDepInput','pkgFlightDepDisplay')">
+                <input type="date" id="pkgFlightDepInput" style="position:absolute;opacity:0;width:100%;height:100%;top:0;left:0;cursor:pointer;font-size:16px" onchange="updateDateDisplay('pkgFlightDepInput','pkgFlightDepDisplay')">
               </div>
               <div class="search-field date-field" onclick="openCal('pkgFlightRetInput')" style="border-radius:var(--radius-md)">
                 <div class="field-label">🛬 Return Date (optional)</div>
                 <div class="field-value" id="pkgFlightRetDisplay">Select date</div>
-                <input type="date" id="pkgFlightRetInput" style="position:absolute;opacity:0;width:0;height:0" onchange="updateDateDisplay('pkgFlightRetInput','pkgFlightRetDisplay')">
+                <input type="date" id="pkgFlightRetInput" style="position:absolute;opacity:0;width:100%;height:100%;top:0;left:0;cursor:pointer;font-size:16px" onchange="updateDateDisplay('pkgFlightRetInput','pkgFlightRetDisplay')">
               </div>
             </div>
           </div>
@@ -3153,12 +3173,12 @@ textarea {
               <div class="search-field date-field" onclick="openCal('flightDeparture')">
                 <div class="field-label">📅 Departure</div>
                 <div class="field-value" id="flightDepartureDisplay">Select date</div>
-                <input type="date" id="flightDeparture" style="position:absolute;opacity:0;width:0;height:0" onchange="updateDateDisplay('flightDeparture','flightDepartureDisplay')">
+                <input type="date" id="flightDeparture" style="position:absolute;opacity:0;width:100%;height:100%;top:0;left:0;cursor:pointer;font-size:16px" onchange="updateDateDisplay('flightDeparture','flightDepartureDisplay')">
               </div>
               <div class="search-field date-field" id="returnDateField" onclick="openCal('flightReturn')" style="display:none">
                 <div class="field-label">📅 Return</div>
                 <div class="field-value" id="flightReturnDisplay">Select date</div>
-                <input type="date" id="flightReturn" style="position:absolute;opacity:0;width:0;height:0" onchange="updateDateDisplay('flightReturn','flightReturnDisplay')">
+                <input type="date" id="flightReturn" style="position:absolute;opacity:0;width:100%;height:100%;top:0;left:0;cursor:pointer;font-size:16px" onchange="updateDateDisplay('flightReturn','flightReturnDisplay')">
               </div>
               <div class="search-field">
                 <div class="field-label">👥 Travellers</div>
@@ -3878,12 +3898,19 @@ window.addEventListener('scroll', () => {
 function openCal(inputId) {
   const input = document.getElementById(inputId);
   if (!input) return;
-  // Ensure input closes after date selected (blur triggers native close)
   if (!input._calListenerAdded) {
     input._calListenerAdded = true;
     input.addEventListener('change', () => { setTimeout(() => input.blur(), 50); });
   }
-  try { input.showPicker(); } catch(e) { input.click(); }
+  // iOS Safari: showPicker() only works from user gesture on visible element
+  // Since input covers parent div (100% w/h), the tap already fires on it
+  // This function is called from onclick on parent — just focus the input
+  try {
+    input.focus();
+    if (typeof input.showPicker === 'function') input.showPicker();
+  } catch(e) {
+    input.click();
+  }
 }
 
 function updateDateDisplay(inputId, displayId) {
@@ -5497,7 +5524,7 @@ function addMultiCityLeg() {
     <div class="search-field date-field" onclick="openCal('legDep${idx}')">
       <div class="field-label">📅 Date</div>
       <div class="field-value" id="legDepDisplay${idx}">${fmtD(dep)}</div>
-      <input type="date" id="legDep${idx}" value="${fmt(dep)}" style="position:absolute;opacity:0;width:0;height:0" onchange="updateDateDisplay('legDep${idx}','legDepDisplay${idx}')">
+      <input type="date" id="legDep${idx}" value="${fmt(dep)}" style="position:absolute;opacity:0;width:100%;height:100%;top:0;left:0;cursor:pointer;font-size:16px" onchange="updateDateDisplay('legDep${idx}','legDepDisplay${idx}')">
     </div>
     ${idx >= 2 ? `<button class="multi-leg-remove" onclick="removeMultiLeg('${legId}')">×</button>` : '<div style="width:44px;background:var(--ink-2)"></div>'}
   `;

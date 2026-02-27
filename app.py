@@ -11400,133 +11400,170 @@ def surprise_trip():
         dest_list = ', '.join([f"{d['name']} ({d.get('destination_type','')})" for d in destinations])
         pkg_list  = ', '.join([f"{p['name']} (₹{p.get('price_from',0)}/person)" for p in packages])
 
-        # ── Step 2: Amadeus live flight — budget-aware, domestic + international ──
+        # ── Step 2: Amadeus live flight — dynamic budget-aware parallel search ──
         amadeus_flight = None
         amadeus_hotel  = None
         dep_date = (datetime.now() + timedelta(days=5)).strftime('%Y-%m-%d')
         ret_date = (datetime.now() + timedelta(days=8)).strftime('%Y-%m-%d')
 
-        # Budget per person → choose route tier
-        # Domestic: ~₹8K-40K flight | International: ~₹25K-150K+
-        total_budget = budget * adults
+        # Full destination pool — (origin, dest_iata, dest_city, hotel_city_code)
+        ALL_DESTINATIONS = [
+            # Domestic
+            ('DEL','GOI','Goa','GOA'),
+            ('DEL','BOM','Mumbai','BOM'),
+            ('DEL','BLR','Bangalore','BLR'),
+            ('DEL','COK','Kochi','COK'),
+            ('DEL','HYD','Hyderabad','HYD'),
+            ('DEL','MAA','Chennai','MAA'),
+            ('DEL','SXR','Srinagar','SXR'),
+            ('DEL','ATQ','Amritsar','ATQ'),
+            ('BOM','GOI','Goa','GOA'),
+            ('BOM','COK','Kochi','COK'),
+            # Regional international
+            ('DEL','KTM','Kathmandu','KTM'),
+            ('DEL','CMB','Colombo','CMB'),
+            ('DEL','BKK','Bangkok','BKK'),
+            ('DEL','DPS','Bali','DPS'),
+            ('DEL','DXB','Dubai','DXB'),
+            ('BOM','DXB','Dubai','DXB'),
+            ('DEL','SIN','Singapore','SIN'),
+            ('DEL','KUL','Kuala Lumpur','KUL'),
+            ('BOM','SIN','Singapore','SIN'),
+            ('BOM','BKK','Bangkok','BKK'),
+            ('DEL','MLE','Maldives','MLE'),
+            # Long haul
+            ('DEL','LHR','London','LON'),
+            ('DEL','CDG','Paris','PAR'),
+            ('DEL','AMS','Amsterdam','AMS'),
+            ('DEL','FCO','Rome','ROM'),
+            ('DEL','JFK','New York','NYC'),
+            ('DEL','NRT','Tokyo','TYO'),
+            ('DEL','SYD','Sydney','SYD'),
+            ('BOM','LHR','London','LON'),
+        ]
 
-        # (origin, dest_iata, dest_city, hotel_city_code, is_international)
-        domestic_routes = {
-            'adventure': [('DEL','SXR','Srinagar','SXR',False),('DEL','ATQ','Amritsar','ATQ',False),('DEL','GOI','Goa','GOA',False)],
-            'chill':     [('DEL','GOI','Goa','GOA',False),('BOM','COK','Kochi','COK',False),('DEL','COK','Kochi','COK',False)],
-            'romantic':  [('DEL','GOI','Goa','GOA',False),('DEL','COK','Kochi','COK',False),('BOM','GOI','Goa','GOA',False)],
-            'spiritual': [('DEL','ATQ','Amritsar','ATQ',False),('BOM','DEL','Delhi','DEL',False),('DEL','BOM','Mumbai','BOM',False)],
-            'family':    [('DEL','BOM','Mumbai','BOM',False),('DEL','BLR','Bangalore','BLR',False),('DEL','HYD','Hyderabad','HYD',False)],
+        # Vibe preference order — sort destinations by vibe affinity
+        _vibe_pref = {
+            'adventure': ['Srinagar','Kathmandu','Bali','Kochi','Goa','Bangkok','Tokyo','Sydney','New York','London','Amsterdam'],
+            'chill':     ['Goa','Bali','Maldives','Kochi','Bangkok','Colombo','Dubai','Singapore','London','Paris'],
+            'romantic':  ['Paris','Amsterdam','Maldives','Bali','Goa','Kochi','Rome','London','Singapore','Dubai'],
+            'spiritual': ['Amritsar','Kathmandu','Colombo','Kochi','Bangkok','Bali','Rome','London'],
+            'family':    ['Singapore','Dubai','Bangkok','Bali','Goa','Mumbai','Bangalore','Kochi','London','Paris'],
         }
-        intl_routes = {
-            'adventure': [('DEL','DPS','Bali','DPS',True),('DEL','KTM','Kathmandu','KTM',True),('DEL','BKK','Bangkok','BKK',True)],
-            'chill':     [('DEL','DPS','Bali','DPS',True),('DEL','BKK','Bangkok','BKK',True),('BOM','MLE','Maldives','MLE',True)],
-            'romantic':  [('DEL','CDG','Paris','CDG',True),('DEL','LHR','London','LHR',True),('DEL','AMS','Amsterdam','AMS',True)],
-            'spiritual': [('DEL','KTM','Kathmandu','KTM',True),('BOM','CMB','Sri Lanka','CMB',True),('DEL','BKK','Bangkok','BKK',True)],
-            'family':    [('DEL','DPS','Bali','DPS',True),('DEL','BKK','Bangkok','BKK',True),('DEL','SIN','Singapore','SIN',True)],
-        }
-
-        # Pick route pool based on budget (per person)
-        # <80K: domestic only | 80K-2L: mix | >2L: prefer international
-        dom = domestic_routes.get(vibe, domestic_routes['chill'])
-        intl = intl_routes.get(vibe, intl_routes['chill'])
-        if budget < 80000:
-            route_pool = dom
-        elif budget < 200000:
-            route_pool = intl + dom   # try intl first then fallback domestic
-        else:
-            route_pool = intl
-
-        random.shuffle(route_pool)
+        _pref = _vibe_pref.get(vibe, _vibe_pref['chill'])
+        def _sort_key(r):
+            try: return _pref.index(r[2])
+            except ValueError: return 99
+        sorted_routes = sorted(ALL_DESTINATIONS, key=_sort_key)
 
         try:
             token    = _get_amadeus_token()
             base_url = _get_amadeus_base_url()
             if token:
-                for orig_iata, dest_iata, dest_city_name, hotel_city_code, is_intl in route_pool:
+                budget_total = budget * adults   # Amadeus returns total for all pax
+
+                def _search_one(route_tuple):
+                    orig, dest, city, hcity = route_tuple
                     try:
-                        # Flight search
-                        resp = _requests.get(
+                        r = _requests.get(
                             f'{base_url}/v2/shopping/flight-offers',
                             headers={'Authorization': f'Bearer {token}'},
-                            params={'originLocationCode': orig_iata,
-                                    'destinationLocationCode': dest_iata,
-                                    'departureDate': dep_date,
-                                    'returnDate': ret_date,
-                                    'adults': adults,
-                                    'max': 1,
-                                    'currencyCode': 'INR',
-                                    'nonStop': 'false'},
-                            timeout=8,
+                            params={
+                                'originLocationCode':      orig,
+                                'destinationLocationCode': dest,
+                                'departureDate':           dep_date,
+                                'returnDate':              ret_date,
+                                'adults':                  adults,
+                                'max':                     1,
+                                'currencyCode':            'INR',
+                            },
+                            timeout=6,
                         )
-                        if resp.ok:
-                            offers = resp.json().get('data', [])
+                        if r.ok:
+                            offers = r.json().get('data', [])
                             if offers:
                                 o     = offers[0]
-                                price = float(o.get('price', {}).get('grandTotal', 0))
-                                seg   = o.get('itineraries', [{}])[0].get('segments', [{}])[0]
-                                stops = len(o.get('itineraries', [{}])[0].get('segments', [])) - 1
-                                amadeus_flight = {
-                                    'origin':      orig_iata,
-                                    'destination': dest_iata,
-                                    'dest_city':   dest_city_name,
+                                p     = o.get('price', {})
+                                price = float(p.get('grandTotal') or p.get('total') or p.get('base') or 0)
+                                segs  = o.get('itineraries', [{}])[0].get('segments', [])
+                                seg   = segs[0] if segs else {}
+                                return {
+                                    'origin':      orig,
+                                    'destination': dest,
+                                    'dest_city':   city,
+                                    'hotel_city':  hcity,
                                     'price':       price,
-                                    'airline':     seg.get('carrierCode', ''),
+                                    'airline':     seg.get('carrierCode',''),
                                     'dep_date':    dep_date,
                                     'ret_date':    ret_date,
-                                    'stops':       stops,
+                                    'stops':       max(0, len(segs)-1),
                                 }
-
-                                # Hotel search for same city
-                                city_code = hotel_city_code
-                                try:
-                                    hids_resp = _requests.get(
-                                        f'{base_url}/v1/reference-data/locations/hotels/by-city',
-                                        headers={'Authorization': f'Bearer {token}'},
-                                        params={'cityCode': city_code},
-                                        timeout=6,
-                                    )
-                                    if hids_resp.ok:
-                                        hids = [h['hotelId'] for h in hids_resp.json().get('data', [])[:8] if h.get('hotelId')]
-                                        if hids:
-                                            avail = _requests.get(
-                                                f'{base_url}/v3/shopping/hotel-offers',
-                                                headers={'Authorization': f'Bearer {token}'},
-                                                params={
-                                                    'hotelIds':    ','.join(hids[:5]),
-                                                    'checkInDate':  dep_date,
-                                                    'checkOutDate': ret_date,
-                                                    'adults':       adults,
-                                                    'roomQuantity': 1,
-                                                    'currency':     'INR',
-                                                    'bestRateOnly': 'true',
-                                                },
-                                                timeout=8,
-                                            )
-                                            if avail.ok:
-                                                hdata = avail.json().get('data', [])
-                                                if hdata:
-                                                    h0      = hdata[0]
-                                                    hinfo   = h0.get('hotel', {})
-                                                    h_offer = h0.get('offers', [{}])[0]
-                                                    _hprice_dict = h_offer.get('price', {})
-                                                    h_price = float(
-                                                        _hprice_dict.get('grandTotal') or
-                                                        _hprice_dict.get('total') or
-                                                        _hprice_dict.get('base') or 0
-                                                    )
-                                                    amadeus_hotel = {
-                                                        'name':    hinfo.get('name', 'Hotel'),
-                                                        'stars':   int(hinfo.get('rating') or 3),
-                                                        'price':   h_price,
-                                                        'city':    city_code,
-                                                        'nights':  3,
-                                                    }
-                                except Exception as he:
-                                    logger.warning(f"Hotel fetch in surprise: {he}")
-                                break  # got flight, stop trying routes
                     except Exception:
-                        continue
+                        pass
+                    return None
+
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor(max_workers=8) as ex:
+                    raw_results = list(ex.map(_search_one, sorted_routes[:16]))
+
+                valid = [r for r in raw_results if r and r['price'] > 0]
+                if valid:
+                    within_budget = [r for r in valid if r['price'] <= budget_total]
+                    if within_budget:
+                        # Pick flight that uses ~60% of budget (leaves room for hotel)
+                        target = budget_total * 0.6
+                        within_budget.sort(key=lambda r: abs(r['price'] - target))
+                        amadeus_flight = within_budget[0]
+                    else:
+                        # All over budget — pick cheapest
+                        valid.sort(key=lambda r: r['price'])
+                        amadeus_flight = valid[0]
+
+                # ── Hotel for selected destination ──────────────────────────
+                if amadeus_flight:
+                    hcity = amadeus_flight.get('hotel_city', amadeus_flight['destination'])
+                    hotel_budget = max(0, budget_total - amadeus_flight['price'])
+                    try:
+                        hids_r = _requests.get(
+                            f'{base_url}/v1/reference-data/locations/hotels/by-city',
+                            headers={'Authorization': f'Bearer {token}'},
+                            params={'cityCode': hcity},
+                            timeout=6,
+                        )
+                        if hids_r.ok:
+                            hids = [h['hotelId'] for h in hids_r.json().get('data',[])[:10] if h.get('hotelId')]
+                            if hids:
+                                av = _requests.get(
+                                    f'{base_url}/v3/shopping/hotel-offers',
+                                    headers={'Authorization': f'Bearer {token}'},
+                                    params={
+                                        'hotelIds':     ','.join(hids[:8]),
+                                        'checkInDate':  dep_date,
+                                        'checkOutDate': ret_date,
+                                        'adults':       adults,
+                                        'roomQuantity': 1,
+                                        'currency':     'INR',
+                                        'bestRateOnly': 'true',
+                                    },
+                                    timeout=10,
+                                )
+                                if av.ok:
+                                    h_opts = []
+                                    for h0 in av.json().get('data',[]):
+                                        hi  = h0.get('hotel',{})
+                                        hp  = h0.get('offers',[{}])[0].get('price',{})
+                                        hpr = float(hp.get('grandTotal') or hp.get('total') or hp.get('base') or 0)
+                                        if hpr > 0:
+                                            h_opts.append({'name':hi.get('name','Hotel'),'stars':int(hi.get('rating') or 3),'price':hpr,'nights':3})
+                                    if h_opts:
+                                        within_h = [h for h in h_opts if h['price'] <= hotel_budget]
+                                        amadeus_hotel = (
+                                            max(within_h, key=lambda h: h['price']) if within_h
+                                            else min(h_opts, key=lambda h: h['price'])
+                                        )
+                    except Exception as he:
+                        logger.warning(f"Hotel fetch surprise: {he}")
+
         except Exception as fe:
             logger.warning(f"Surprise Amadeus fetch: {fe}")
 
@@ -11621,11 +11658,11 @@ Respond ONLY in this exact JSON:
         pkg_price    = float(matched_pkg.get('price_from') or 0) if matched_pkg else 0
 
         if flight_price and hotel_price:
-            total_price = flight_price + hotel_price   # both are per-booking totals
-        elif pkg_price:
-            total_price = pkg_price * adults
+            total_price = flight_price + hotel_price
+        elif flight_price:
+            total_price = flight_price
         else:
-            total_price = budget * adults
+            total_price = 0
 
         included_items = ai_result.get('included', [])
         if matched_pkg:
@@ -11670,7 +11707,7 @@ Respond ONLY in this exact JSON:
                 'hotel':         amadeus_hotel,
                 'total_price':   total_price,
                 'price_str':     f"₹{int(total_price):,}" if total_price else '',
-                'per_person_str': f"₹{int(total_price/adults):,}/person" if total_price else '',
+                'per_person_str': f"₹{int(total_price/max(adults,1)):,}/person" if total_price else '',
                 'vibe':          vibe,
             }
         }), 200
