@@ -266,7 +266,11 @@ DATABASE_URL = os.environ.get("DATABASE_URL")
 def get_db():
     if not DATABASE_URL:
         raise Exception("DATABASE_URL not set in environment variables")
-    conn = psycopg2.connect(DATABASE_URL, connect_timeout=10)
+    conn = psycopg2.connect(
+        DATABASE_URL,
+        connect_timeout=10,
+        cursor_factory=psycopg2.extras.RealDictCursor
+    )
     try:
         conn.cursor().execute("SET statement_timeout = '8000'")
         conn.commit()
@@ -11050,7 +11054,7 @@ def _do_refresh_lm_deals():
 
         # Search flights for next 3–7 days on all popular routes
         for origin, dest_iata, dest_name, city_code, emoji in _LM_ROUTES:
-            for days_out in [3, 5, 7]:
+            for days_out in [5]:
                 dep_date = (today + timedelta(days=days_out)).strftime('%Y-%m-%d')
                 ret_date = (today + timedelta(days=days_out + 3)).strftime('%Y-%m-%d')
 
