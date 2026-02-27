@@ -1370,6 +1370,290 @@ body::before {
   .trending-title { font-size: 22px; }
 }
 
+/* ── LAST MINUTE DEALS SECTION ────────────────────────────── */
+.lastminute-section {
+  padding: 0 0 56px;
+  overflow: hidden;
+}
+
+.lm-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding: 0 40px 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.lm-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: linear-gradient(135deg, #D4603A, #C9442A);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: 20px;
+  margin-bottom: 8px;
+  animation: pulse-badge 2s infinite;
+}
+
+@keyframes pulse-badge {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(212,96,58,0.4); }
+  50% { box-shadow: 0 0 0 6px rgba(212,96,58,0); }
+}
+
+.lm-title {
+  font-family: var(--font-serif);
+  font-size: 28px;
+  font-weight: 400;
+  color: var(--white);
+}
+
+.lm-countdown {
+  font-size: 12px;
+  color: var(--coral);
+  font-weight: 500;
+  text-align: right;
+}
+
+.lm-card {
+  width: 280px;
+  flex-shrink: 0;
+  background: var(--ghost);
+  border: 1px solid rgba(212,96,58,0.2);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  cursor: pointer;
+  transition: var(--transition);
+  position: relative;
+}
+
+.lm-card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(212,96,58,0.5);
+  box-shadow: 0 20px 50px rgba(212,96,58,0.15);
+}
+
+.lm-card-badge {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  background: var(--coral);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 12px;
+  z-index: 2;
+  letter-spacing: 0.05em;
+}
+
+.lm-card-img {
+  width: 100%;
+  height: 160px;
+  object-fit: cover;
+  display: block;
+}
+
+.lm-card-img-placeholder {
+  width: 100%;
+  height: 160px;
+  background: linear-gradient(135deg, rgba(212,96,58,0.2), rgba(13,13,13,0.8));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 40px;
+}
+
+.lm-card-body { padding: 16px 18px 18px; }
+.lm-card-name { font-family: var(--font-serif); font-size: 17px; color: var(--white); margin-bottom: 4px; }
+.lm-card-tagline { font-size: 12px; color: rgba(255,255,255,0.5); margin-bottom: 12px; }
+.lm-card-meta { display: flex; align-items: center; justify-content: space-between; border-top: 1px solid var(--ghost-2); padding-top: 10px; }
+.lm-card-dates { font-size: 11px; color: rgba(255,255,255,0.4); }
+.lm-card-price { font-size: 14px; font-weight: 600; color: var(--coral); }
+
+/* ── SURPRISE TRIP SECTION ─────────────────────────────────── */
+.surprise-section {
+  padding: 20px 40px 48px;
+  max-width: 900px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.surprise-card {
+  background: linear-gradient(135deg, rgba(201,168,76,0.08), rgba(13,13,13,0.9));
+  border: 1px solid var(--border-2);
+  border-radius: 24px;
+  padding: 32px 36px;
+  position: relative;
+  overflow: hidden;
+}
+
+.surprise-card::before {
+  content: '✦';
+  position: absolute;
+  top: -20px;
+  right: -20px;
+  font-size: 120px;
+  color: rgba(201,168,76,0.05);
+  pointer-events: none;
+}
+
+.surprise-label {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin-bottom: 12px;
+}
+
+.surprise-title {
+  font-family: var(--font-serif);
+  font-size: 26px;
+  font-weight: 400;
+  margin-bottom: 8px;
+  line-height: 1.1;
+}
+
+.surprise-subtitle {
+  font-size: 13px;
+  color: rgba(255,255,255,0.5);
+  margin-bottom: 20px;
+  max-width: 500px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.vibe-grid {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-bottom: 28px;
+}
+
+.vibe-btn {
+  background: var(--ghost);
+  border: 1px solid var(--ghost-2);
+  color: rgba(255,255,255,0.7);
+  padding: 10px 20px;
+  border-radius: 50px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.vibe-btn:hover, .vibe-btn.active {
+  background: var(--gold);
+  color: var(--ink);
+  border-color: var(--gold);
+  font-weight: 600;
+}
+
+.surprise-budget-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: center;
+  margin-bottom: 28px;
+  flex-wrap: wrap;
+}
+
+.surprise-budget-row label {
+  font-size: 13px;
+  color: rgba(255,255,255,0.5);
+}
+
+.surprise-budget-input {
+  background: var(--ghost);
+  border: 1px solid var(--ghost-2);
+  color: var(--white);
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-size: 14px;
+  width: 140px;
+  text-align: center;
+}
+
+.surprise-btn {
+  background: linear-gradient(135deg, var(--gold), var(--gold-dim));
+  color: var(--ink);
+  border: none;
+  padding: 16px 40px;
+  border-radius: 50px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+  letter-spacing: 0.02em;
+}
+
+.surprise-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px rgba(201,168,76,0.3);
+}
+
+.surprise-result {
+  display: none;
+  margin-top: 36px;
+  background: var(--ghost);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 28px;
+  text-align: left;
+  animation: fadeInUp 0.5s var(--transition);
+}
+
+.surprise-result.visible { display: block; }
+
+.surprise-result-dest {
+  font-family: var(--font-serif);
+  font-size: 28px;
+  margin-bottom: 6px;
+}
+
+.surprise-result-tagline {
+  color: var(--gold);
+  font-size: 14px;
+  margin-bottom: 14px;
+  font-style: italic;
+}
+
+.surprise-result-reason {
+  font-size: 14px;
+  color: rgba(255,255,255,0.7);
+  line-height: 1.7;
+  margin-bottom: 20px;
+}
+
+.surprise-book-btn {
+  background: var(--gold);
+  color: var(--ink);
+  border: none;
+  padding: 12px 28px;
+  border-radius: 50px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 768px) {
+  .lm-header { padding: 0 20px 20px; }
+  .surprise-section { padding: 40px 20px; }
+  .surprise-title { font-size: 26px; }
+  .surprise-card { padding: 36px 24px; }
+}
+
 /* ── RESULTS SECTION LABEL ─────────────────────────────────── */
 .results-section-label {
   font-family: var(--font-serif);
@@ -2818,7 +3102,58 @@ textarea {
   </div>
 </section>
 
-<!-- POPULAR DESTINATIONS CHIPS (auto-scroll marquee) -->
+<!-- LAST MINUTE DEALS SECTION -->
+<section class="lastminute-section" id="lastMinuteSection">
+  <div class="lm-header">
+    <div>
+      <div class="lm-badge">🔥 Limited Time</div>
+      <h2 class="lm-title serif">Last Minute Deals</h2>
+    </div>
+    <div class="lm-countdown" id="lmCountdown"></div>
+  </div>
+  <div class="trending-track-wrap">
+    <div class="trending-track" id="lastMinuteTrack">
+      <!-- filled by JS -->
+    </div>
+  </div>
+</section>
+
+<!-- SURPRISE TRIP SECTION -->
+<section class="surprise-section" id="surpriseSection">
+  <div class="surprise-card">
+    <div class="surprise-label">✦ Let Us Decide</div>
+    <h2 class="surprise-title serif">Surprise Me 🎲</h2>
+    <p class="surprise-subtitle">Budget daalo — baaki Sharad sambhal lega.</p>
+
+    <div class="surprise-budget-row">
+      <span style="font-size:13px;color:rgba(255,255,255,0.5)">₹</span>
+      <input type="number" class="surprise-budget-input" id="surpriseBudget" value="15000" placeholder="Budget/person">
+      <input type="number" class="surprise-budget-input" id="surpriseAdults" value="2" min="1" max="10" style="width:70px" placeholder="Adults">
+    </div>
+
+    <button class="surprise-btn" onclick="generateSurprise()">
+      <span id="surpriseBtnText">✨ Surprise Me!</span>
+    </button>
+
+    <div class="surprise-result" id="surpriseResult">
+      <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px">
+        <div style="flex:1">
+          <div class="surprise-result-dest" id="surpriseDestName"></div>
+          <div class="surprise-result-tagline" id="surpriseTagline"></div>
+        </div>
+        <div style="font-size:48px" id="surpriseVibeEmoji">🎲</div>
+      </div>
+      <div class="surprise-result-reason" id="surpriseReason"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+        <div style="font-size:13px;color:rgba(255,255,255,0.5)">
+          <span id="surpriseDuration"></span> &nbsp;•&nbsp;
+          <span style="color:var(--gold-light)" id="surprisePrice"></span>
+        </div>
+        <button class="surprise-book-btn" id="surpriseBookBtn" onclick="bookSurprise()">Book This Trip →</button>
+      </div>
+    </div>
+  </div>
+</section>
 <div class="popular-dests" id="popularDestsBar">
   <div class="popular-dests-label">✦ Popular Destinations</div>
   <div class="popular-dests-track-wrap">
@@ -3131,7 +3466,215 @@ function selectDestination(name) {
   }
 })();
 
-// ── NAV SCROLL ──────────────────────────────────────────────────
+// ── LAST MINUTE DEALS LOADER ────────────────────────────────────
+// ── LAST MINUTE DEALS LOADER ────────────────────────────────────
+function _lmFallbackCards() {
+  // Use trending packages as last minute deals fallback
+  const track = document.getElementById('trendingTrack');
+  const pkgCards = track ? track.querySelectorAll('.pkg-card') : [];
+  if (pkgCards.length === 0) {
+    return `<div style="padding:20px;color:rgba(255,255,255,0.3);font-size:13px">Deals loading soon...</div>`;
+  }
+  const today = new Date();
+  const fri = new Date(today);
+  fri.setDate(today.getDate() + ((5 - today.getDay() + 7) % 7 || 7));
+  const sun = new Date(fri);
+  sun.setDate(fri.getDate() + 3);
+  const fmt = d => d.toLocaleDateString('en-IN', {day:'numeric', month:'short'});
+  const datesStr = `${fmt(fri)} – ${fmt(sun)}`;
+
+  // Clone trending package cards styled as LM deals
+  return Array.from(pkgCards).slice(0,4).map(card => {
+    const name = card.querySelector('.pkg-card-name')?.textContent || 'Weekend Getaway';
+    const tagline = card.querySelector('.pkg-card-tagline')?.textContent || 'Book now — limited seats!';
+    const price = card.querySelector('.pkg-card-price')?.textContent || '';
+    const img = card.querySelector('img');
+    const imgHtml = img
+      ? `<img class="lm-card-img" src="${img.src}" alt="${name}" onerror="this.style.display='none'">`
+      : `<div class="lm-card-img-placeholder">🏔️</div>`;
+    const href = card.getAttribute('href') || '#';
+    return `
+      <div class="lm-card" onclick="window.open('${href}','_blank')">
+        <div class="lm-card-badge">15% OFF</div>
+        ${imgHtml}
+        <div class="lm-card-body">
+          <div class="lm-card-name">${name}</div>
+          <div class="lm-card-tagline">${tagline}</div>
+          <div class="lm-card-meta">
+            <div class="lm-card-dates">📅 ${datesStr}</div>
+            <div class="lm-card-price">${price}</div>
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+(async function loadLastMinuteDeals() {
+  const section = document.getElementById('lastMinuteSection');
+  const track = document.getElementById('lastMinuteTrack');
+  if (!section || !track) return;
+
+  try {
+    const res = await fetch('/api/last-minute-deals');
+    if (!res.ok) {
+      section.style.display = 'block';
+      track.innerHTML = _lmFallbackCards();
+      return;
+    }
+    const data = await res.json();
+    let deals = data.deals || [];
+    
+    section.style.display = 'block';
+    if (deals.length === 0) {
+      track.innerHTML = _lmFallbackCards();
+      return;
+    }
+
+    // Countdown timer — resets every 24hr
+    const lmCountdown = document.getElementById('lmCountdown');
+    function updateCountdown() {
+      const now = new Date();
+      const midnight = new Date(now);
+      midnight.setHours(24, 0, 0, 0);
+      const diff = midnight - now;
+      const h = Math.floor(diff / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      const s = Math.floor((diff % 60000) / 1000);
+      if (lmCountdown) lmCountdown.textContent = `⏰ Deals expire in ${h}h ${m}m ${s}s`;
+    }
+    updateCountdown();
+    setInterval(updateCountdown, 1000);
+
+    const vibeEmojis = { 'live_flight': '✈️', 'last_minute': '🏔️' };
+
+    track.innerHTML = deals.map(deal => {
+      const priceStr = deal.price_from
+        ? `₹${Number(deal.price_from).toLocaleString('en-IN')}`
+        : 'View Deal';
+      const savingsStr = deal.savings_pct ? `${deal.savings_pct}% OFF` : 'DEAL';
+      const depDate = deal.departure_date ? new Date(deal.departure_date).toLocaleDateString('en-IN', {day:'numeric', month:'short'}) : '';
+      const retDate = deal.return_date ? new Date(deal.return_date).toLocaleDateString('en-IN', {day:'numeric', month:'short'}) : '';
+      const datesStr = depDate && retDate ? `${depDate} – ${retDate}` : depDate || 'This Weekend';
+      const emoji = vibeEmojis[deal.deal_type] || '🌟';
+
+      return `
+        <div class="lm-card" onclick="bookLastMinuteDeal(${JSON.stringify(deal).replace(/"/g, '&quot;')})">
+          <div class="lm-card-badge">${savingsStr}</div>
+          ${deal.image_url
+            ? `<img class="lm-card-img" src="${deal.image_url}" alt="${deal.name}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
+            : ''}
+          <div class="lm-card-img-placeholder" style="${deal.image_url ? 'display:none' : ''}">${emoji}</div>
+          <div class="lm-card-body">
+            <div class="lm-card-name">${deal.name}</div>
+            <div class="lm-card-tagline">${deal.tagline || 'Book now — limited availability!'}</div>
+            <div class="lm-card-meta">
+              <div class="lm-card-dates">📅 ${datesStr}</div>
+              <div class="lm-card-price">${priceStr}</div>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+  } catch(e) {
+    console.warn('Last minute deals failed:', e);
+  }
+})();
+
+function bookLastMinuteDeal(deal) {
+  if (deal.package_id) {
+    window.open(`/package_detail.html?id=${deal.package_id}`, '_blank');
+  } else if (deal.origin && deal.destination_iata) {
+    // Pre-fill search with these flight params
+    const tab = document.querySelector('[data-tab="packages"]');
+    if (tab) tab.click();
+    setTimeout(() => {
+      const originIn = document.getElementById('pkgOriginInput');
+      const destIn = document.getElementById('pkgDestInput');
+      if (originIn) originIn.value = deal.origin;
+      if (destIn) destIn.value = deal.destination_iata;
+      document.getElementById('surpriseSection')?.scrollIntoView({behavior:'smooth'});
+    }, 200);
+  }
+}
+
+// ── SURPRISE TRIP ────────────────────────────────────────────────
+let _surpriseVibe = 'adventure';
+let _surprisePackageId = null;
+
+function selectVibe(btn) {
+  document.querySelectorAll('.vibe-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  _surpriseVibe = btn.dataset.vibe;
+}
+
+const vibeEmojiMap = {
+  adventure: '🏔️', romantic: '💕', family: '👨‍👩‍👧', spiritual: '🕉️', chill: '🌴'
+};
+
+async function generateSurprise() {
+  const btn = document.getElementById('surpriseBtnText');
+  const result = document.getElementById('surpriseResult');
+  const budget = parseInt(document.getElementById('surpriseBudget').value) || 15000;
+  const adults = parseInt(document.getElementById('surpriseAdults').value) || 2;
+
+  btn.textContent = '✨ Planning your surprise...';
+  result.classList.remove('visible');
+
+  try {
+    const res = await fetch('/api/surprise-trip', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        budget, adults,
+        vibe: _surpriseVibe,
+        origin: 'DEL',
+      })
+    });
+    const data = await res.json();
+
+    if (!data.success || !data.surprise) {
+      btn.textContent = '✨ Try Again';
+      return;
+    }
+
+    const s = data.surprise;
+    _surprisePackageId = s.package_id;
+
+    document.getElementById('surpriseDestName').textContent = '🎯 ' + s.destination;
+    document.getElementById('surpriseTagline').textContent = s.tagline || '';
+    document.getElementById('surpriseReason').textContent = s.reason || '';
+    document.getElementById('surpriseVibeEmoji').textContent = vibeEmojiMap[_surpriseVibe] || '🎲';
+    document.getElementById('surpriseDuration').textContent = `${s.duration_days || 3} nights`;
+    document.getElementById('surprisePrice').textContent = s.price_from
+      ? `From ₹${Number(s.price_from).toLocaleString('en-IN')}/person`
+      : '';
+
+    result.classList.add('visible');
+    btn.textContent = '🔄 Surprise Me Again!';
+
+  } catch(e) {
+    btn.textContent = '✨ Try Again';
+    console.error('Surprise trip error:', e);
+  }
+}
+
+function bookSurprise() {
+  if (_surprisePackageId) {
+    window.open(`/package_detail.html?id=${_surprisePackageId}`, '_blank');
+  } else {
+    // Open chat with Sharad pre-filled
+    const chatInput = document.getElementById('chatInput') || document.querySelector('.chat-input');
+    if (chatInput) {
+      chatInput.value = `Plan a ${_surpriseVibe} surprise trip for me!`;
+      chatInput.dispatchEvent(new Event('input'));
+    }
+    const chatBtn = document.querySelector('.chat-toggle, .sharad-btn, [onclick*="toggleChat"]');
+    if (chatBtn) chatBtn.click();
+  }
+}
+
+
 window.addEventListener('scroll', () => {
   document.getElementById('mainNav').classList.toggle('scrolled', scrollY > 50);
 });
@@ -6484,6 +7027,28 @@ function _sharadHandleAction(result) {
           }, 400);
         }, 250);
       }
+
+    } else if (action === 'SURPRISE_TRIP') {
+      // Sharad triggered surprise trip — scroll to section and pre-fill
+      const surpriseSec = document.getElementById('surpriseSection');
+      if (surpriseSec) {
+        surpriseSec.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const vibe = result.vibe || 'adventure';
+        const budget = result.budget || 15000;
+        // Select the vibe button
+        document.querySelectorAll('.vibe-btn').forEach(b => {
+          b.classList.toggle('active', b.dataset.vibe === vibe);
+        });
+        _surpriseVibe = vibe;
+        const budgetEl = document.getElementById('surpriseBudget');
+        if (budgetEl) budgetEl.value = budget;
+        // Auto-trigger after short delay
+        setTimeout(() => generateSurprise(), 800);
+      }
+
+    } else if (action === 'NEGOTIATE_BUDGET') {
+      // Sharad is negotiating — just show message, no UI action needed
+      // The message already contains the savings options
 
     } else if (action === 'SET_ADULTS') {
       const n = parseInt(result.value) || 1;
