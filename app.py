@@ -266,11 +266,7 @@ DATABASE_URL = os.environ.get("DATABASE_URL")
 def get_db():
     if not DATABASE_URL:
         raise Exception("DATABASE_URL not set in environment variables")
-    conn = psycopg2.connect(
-        DATABASE_URL,
-        connect_timeout=10,
-        cursor_factory=psycopg2.extras.RealDictCursor
-    )
+    conn = psycopg2.connect(DATABASE_URL, connect_timeout=10)
     try:
         conn.cursor().execute("SET statement_timeout = '8000'")
         conn.commit()
@@ -11223,7 +11219,7 @@ def last_minute_deals():
 
     try:
         db = get_db()
-        cur = db.cursor()
+        cur = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
         # Check if we have fresh deals
         cur.execute("""
@@ -11239,7 +11235,7 @@ def last_minute_deals():
             db.close()
             _do_refresh_lm_deals()
             db = get_db()
-            cur = db.cursor()
+            cur = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
         # Fetch best deals — cheapest per route, mix of flights + hotels
         cur.execute("""
@@ -11358,11 +11354,11 @@ def surprise_trip():
         adults = int(data.get('adults', 2))
         departure_date = data.get('departure_date', '')
         origin = data.get('origin', 'DEL')
-        client_id = _get_client_id()
+        client_id = get_client_id()
 
         # Get all available destinations + hotels from DB
         db = get_db()
-        cur = db.cursor()
+        cur = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cur.execute("SELECT * FROM destinations WHERE client_id=%s AND active=TRUE", (client_id,))
         destinations = cur.fetchall()
         cur.execute("SELECT * FROM hotels WHERE client_id=%s AND active=TRUE", (client_id,))
