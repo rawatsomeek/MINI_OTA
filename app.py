@@ -11400,31 +11400,50 @@ def surprise_trip():
         dest_list = ', '.join([f"{d['name']} ({d.get('destination_type','')})" for d in destinations])
         pkg_list  = ', '.join([f"{p['name']} (₹{p.get('price_from',0)}/person)" for p in packages])
 
-        # ── Step 2: Amadeus live flight ──────────────────────────────────────
+        # ── Step 2: Amadeus live flight — budget-aware, domestic + international ──
         amadeus_flight = None
         amadeus_hotel  = None
         dep_date = (datetime.now() + timedelta(days=5)).strftime('%Y-%m-%d')
         ret_date = (datetime.now() + timedelta(days=8)).strftime('%Y-%m-%d')
 
-        vibe_routes = {
-            'adventure': [('DEL','SXR','Srinagar'),('DEL','IXL','Leh'),('DEL','ATQ','Amritsar')],
-            'chill':     [('DEL','GOI','Goa'),('BOM','GOI','Goa'),('DEL','COK','Kochi')],
-            'romantic':  [('DEL','GOI','Goa'),('DEL','COK','Kochi'),('BOM','BLR','Bangalore')],
-            'spiritual': [('DEL','ATQ','Amritsar'),('DEL','BOM','Mumbai'),('BOM','DEL','Delhi')],
-            'family':    [('DEL','BOM','Mumbai'),('DEL','BLR','Bangalore'),('DEL','HYD','Hyderabad')],
+        # Budget per person → choose route tier
+        # Domestic: ~₹8K-40K flight | International: ~₹25K-150K+
+        total_budget = budget * adults
+
+        # (origin, dest_iata, dest_city, hotel_city_code, is_international)
+        domestic_routes = {
+            'adventure': [('DEL','SXR','Srinagar','SXR',False),('DEL','ATQ','Amritsar','ATQ',False),('DEL','GOI','Goa','GOA',False)],
+            'chill':     [('DEL','GOI','Goa','GOA',False),('BOM','COK','Kochi','COK',False),('DEL','COK','Kochi','COK',False)],
+            'romantic':  [('DEL','GOI','Goa','GOA',False),('DEL','COK','Kochi','COK',False),('BOM','GOI','Goa','GOA',False)],
+            'spiritual': [('DEL','ATQ','Amritsar','ATQ',False),('BOM','DEL','Delhi','DEL',False),('DEL','BOM','Mumbai','BOM',False)],
+            'family':    [('DEL','BOM','Mumbai','BOM',False),('DEL','BLR','Bangalore','BLR',False),('DEL','HYD','Hyderabad','HYD',False)],
         }
-        dest_city_map = {
-            'SXR':'SXR','IXL':'LDH','ATQ':'ATQ','GOI':'GOA',
-            'COK':'COK','BLR':'BLR','BOM':'BOM','HYD':'HYD','DEL':'DEL'
+        intl_routes = {
+            'adventure': [('DEL','DPS','Bali','DPS',True),('DEL','KTM','Kathmandu','KTM',True),('DEL','BKK','Bangkok','BKK',True)],
+            'chill':     [('DEL','DPS','Bali','DPS',True),('DEL','BKK','Bangkok','BKK',True),('BOM','MLE','Maldives','MLE',True)],
+            'romantic':  [('DEL','CDG','Paris','CDG',True),('DEL','LHR','London','LHR',True),('DEL','AMS','Amsterdam','AMS',True)],
+            'spiritual': [('DEL','KTM','Kathmandu','KTM',True),('BOM','CMB','Sri Lanka','CMB',True),('DEL','BKK','Bangkok','BKK',True)],
+            'family':    [('DEL','DPS','Bali','DPS',True),('DEL','BKK','Bangkok','BKK',True),('DEL','SIN','Singapore','SIN',True)],
         }
-        routes = vibe_routes.get(vibe, [('DEL','GOI','Goa'),('DEL','BOM','Mumbai')])
-        random.shuffle(routes)
+
+        # Pick route pool based on budget (per person)
+        # <80K: domestic only | 80K-2L: mix | >2L: prefer international
+        dom = domestic_routes.get(vibe, domestic_routes['chill'])
+        intl = intl_routes.get(vibe, intl_routes['chill'])
+        if budget < 80000:
+            route_pool = dom
+        elif budget < 200000:
+            route_pool = intl + dom   # try intl first then fallback domestic
+        else:
+            route_pool = intl
+
+        random.shuffle(route_pool)
 
         try:
             token    = _get_amadeus_token()
             base_url = _get_amadeus_base_url()
             if token:
-                for orig_iata, dest_iata, dest_city_name in routes:
+                for orig_iata, dest_iata, dest_city_name, hotel_city_code, is_intl in route_pool:
                     try:
                         # Flight search
                         resp = _requests.get(
@@ -11459,7 +11478,7 @@ def surprise_trip():
                                 }
 
                                 # Hotel search for same city
-                                city_code = dest_city_map.get(dest_iata, dest_iata)
+                                city_code = hotel_city_code
                                 try:
                                     hids_resp = _requests.get(
                                         f'{base_url}/v1/reference-data/locations/hotels/by-city',
@@ -11543,15 +11562,14 @@ ADMIN PACKAGES: {pkg_list or 'None'}
 DESTINATIONS: {dest_list or 'Manali, Goa, Jaipur, Kochi, Amritsar'}
 
 RULES (follow strictly):
-1. destination = CITY NAME only (e.g. "Srinagar", "Goa", "Leh") — NEVER an IATA code
-2. If LIVE FLIGHT is available, destination MUST be that flight's city
-3. Budget is ₹{budget}/person — keep total trip within ₹{budget*adults} total for {adults} people
-4. Itinerary = real experiences: treks, food, adventure, local culture — NO generic "sightseeing"
-5. Each day = ONE specific activity (e.g. "Day 1: Night at Dal Lake houseboat + shikara at sunset")
-6. suggested_package_name = exact ADMIN PACKAGE name only if it matches the destination city
+1. destination = CITY NAME only (e.g. "Paris", "Goa", "Bali") — NEVER an IATA code
+2. If LIVE FLIGHT is available, destination MUST be that exact flight's city
+3. Total trip cost = flight + hotel combined. Budget is ₹{budget}/person (₹{budget*adults} total for {adults} people)
+4. Write an exciting reason specific to this city — what makes it special, what to experience
+5. suggested_package_name = exact ADMIN PACKAGE name only if it matches the destination
 
 Respond ONLY in this exact JSON:
-{{"destination":"city name","tagline":"one exciting punchy line","reason":"2-3 sentences specific to this city and vibe, what makes it special right now","duration_days":3,"suggested_package_name":"exact name or null"}}"""
+{{"destination":"city name","tagline":"one exciting punchy line max 8 words","reason":"2-3 exciting sentences about this specific city for this vibe — food, experiences, best time, feel","duration_days":3,"suggested_package_name":"exact name or null"}}"""
 
                 resp = oai.chat.completions.create(
                     model='gpt-4o',
@@ -11626,7 +11644,7 @@ Respond ONLY in this exact JSON:
                 dest_name = ai_result.get('destination', '')
                 img_resp = _requests.get(
                     'https://api.unsplash.com/search/photos',
-                    params={'query': f"{dest_name} India travel", 'per_page': 1, 'orientation': 'landscape'},
+                    params={'query': f"{dest_name} travel landscape", 'per_page': 1, 'orientation': 'landscape'},
                     headers={'Authorization': f'Client-ID {unsplash_key}'},
                     timeout=5,
                 )

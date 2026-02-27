@@ -3791,8 +3791,10 @@ async function generateSurprise() {
     document.getElementById('surpriseVibeEmoji').textContent = vibeEmojiMap[_surpriseVibe] || '🎲';
     document.getElementById('surpriseReason').textContent = s.reason || '';
     document.getElementById('surpriseDuration').textContent = `${s.duration_days || 3} nights`;
-    document.getElementById('surprisePrice').textContent = s.price_str
-      ? `Total ${s.price_str} · ${s.per_person_str}` : '';
+    const totalStr = s.total_price > 0
+      ? `Total ${s.price_str} · ${s.per_person_str}`
+      : (s.flight ? `Flight ₹${Number(s.flight.price).toLocaleString('en-IN')} · Hotel: checking...` : '');
+    document.getElementById('surprisePrice').textContent = totalStr;
 
     // Build extras: image, flight card, hotel card only (no itinerary)
     let extrasHtml = '';
@@ -3828,6 +3830,16 @@ async function generateSurprise() {
             <div class="sp-booking-sub">${stars} · ${s.hotel.nights || 3} nights</div>
           </div>
           <div class="sp-booking-price">₹${Number(s.hotel.price).toLocaleString('en-IN')}</div>
+        </div>`;
+    } else if (s.flight) {
+      extrasHtml += `
+        <div class="sp-booking-card" style="opacity:0.5">
+          <div class="sp-booking-icon">🏨</div>
+          <div class="sp-booking-info">
+            <div class="sp-booking-title">Hotel in ${s.destination}</div>
+            <div class="sp-booking-sub">3 nights · availability loading</div>
+          </div>
+          <div class="sp-booking-price" style="font-size:11px;color:rgba(255,255,255,0.4)">Book separately</div>
         </div>`;
     }
 
