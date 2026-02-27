@@ -1,0 +1,35 @@
+name: Refresh Last Minute Deals
+
+on:
+  schedule:
+    # Every 12 hours — 6 AM and 6 PM IST (12:30 UTC and 00:30 UTC)
+    - cron: '30 0 * * *'
+    - cron: '30 12 * * *'
+  workflow_dispatch:  # Allow manual trigger from GitHub Actions tab
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Trigger Last Minute Deals Refresh
+        run: |
+          echo "🔄 Triggering deals refresh at $(date)"
+          
+          RESPONSE=$(curl -s -o /tmp/resp.json -w "%{http_code}" \
+            -X POST \
+            -H "X-Refresh-Secret: ${{ secrets.REFRESH_SECRET }}" \
+            -H "Content-Type: application/json" \
+            "${{ secrets.APP_URL }}/api/refresh-deals")
+          
+          echo "HTTP Status: $RESPONSE"
+          echo "Response: $(cat /tmp/resp.json)"
+          
+          if [ "$RESPONSE" != "200" ]; then
+            echo "❌ Refresh failed with status $RESPONSE"
+            exit 1
+          fi
+          
+          SAVED=$(cat /tmp/resp.json | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('saved',0))")
+          echo "✅ Refresh complete — $SAVED deals saved"
