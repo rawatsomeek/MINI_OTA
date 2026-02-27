@@ -11306,7 +11306,7 @@ def last_minute_deals():
                 'price_inr':    float(r['price_inr'] or 0),
                 'price_str':    f"₹{int(r['price_inr'] or 0):,}",
                 'savings_pct':  12,
-                'image_url':    r.get('image_url', '') or '',
+                'image_url':    r.get('image_url', '') or _get_unsplash_image(r.get('dest_name','')),
                 'package_id':   None,
             }
             if r['deal_type'] == 'flight':
@@ -11407,24 +11407,24 @@ def surprise_trip():
         ret_date = (datetime.now() + timedelta(days=8)).strftime('%Y-%m-%d')
 
         vibe_routes = {
-            'adventure': [('DEL','SXR'),('DEL','IXL'),('DEL','ATQ')],
-            'chill':     [('DEL','GOI'),('BOM','GOI'),('DEL','COK')],
-            'romantic':  [('DEL','GOI'),('DEL','COK'),('BOM','BLR')],
-            'spiritual': [('DEL','ATQ'),('DEL','BOM'),('BOM','DEL')],
-            'family':    [('DEL','BOM'),('DEL','BLR'),('DEL','HYD')],
+            'adventure': [('DEL','SXR','Srinagar'),('DEL','IXL','Leh'),('DEL','ATQ','Amritsar')],
+            'chill':     [('DEL','GOI','Goa'),('BOM','GOI','Goa'),('DEL','COK','Kochi')],
+            'romantic':  [('DEL','GOI','Goa'),('DEL','COK','Kochi'),('BOM','BLR','Bangalore')],
+            'spiritual': [('DEL','ATQ','Amritsar'),('DEL','BOM','Mumbai'),('BOM','DEL','Delhi')],
+            'family':    [('DEL','BOM','Mumbai'),('DEL','BLR','Bangalore'),('DEL','HYD','Hyderabad')],
         }
         dest_city_map = {
             'SXR':'SXR','IXL':'LDH','ATQ':'ATQ','GOI':'GOA',
             'COK':'COK','BLR':'BLR','BOM':'BOM','HYD':'HYD','DEL':'DEL'
         }
-        routes = vibe_routes.get(vibe, [('DEL','GOI'),('DEL','BOM')])
+        routes = vibe_routes.get(vibe, [('DEL','GOI','Goa'),('DEL','BOM','Mumbai')])
         random.shuffle(routes)
 
         try:
             token    = _get_amadeus_token()
             base_url = _get_amadeus_base_url()
             if token:
-                for orig_iata, dest_iata in routes:
+                for orig_iata, dest_iata, dest_city_name in routes:
                     try:
                         # Flight search
                         resp = _requests.get(
@@ -11450,6 +11450,7 @@ def surprise_trip():
                                 amadeus_flight = {
                                     'origin':      orig_iata,
                                     'destination': dest_iata,
+                                    'dest_city':   dest_city_name,
                                     'price':       price,
                                     'airline':     seg.get('carrierCode', ''),
                                     'dep_date':    dep_date,
@@ -11536,10 +11537,14 @@ User: vibe={vibe} ({vibe_desc}), budget=₹{budget}/person, adults={adults}, ori
 ADMIN PACKAGES: {pkg_list or 'None'}
 DESTINATIONS: {dest_list or 'Manali, Goa, Jaipur, Kochi, Amritsar'}
 
-Create an exciting complete package. If live flight+hotel data is available, use those details.
+IMPORTANT RULES:
+- destination must be the CITY NAME (e.g. "Srinagar", "Goa") — NOT an IATA code like "SXR"
+- If LIVE FLIGHT shows "to Srinagar", set destination="Srinagar" and build entire itinerary for Srinagar
+- Write real activities for that specific city — local landmarks, food, experiences
+- Be exciting and personal
 
 Respond ONLY in this exact JSON (no extra text):
-{{"destination":"city name","tagline":"one punchy exciting line","reason":"2-3 sentences why perfect for this vibe right now","itinerary":["Day 1: arrive + evening activity","Day 2: main highlight activity","Day 3: explore + depart"],"included":["Return flights","3N hotel","Breakfast daily","Airport transfers"],"duration_days":3,"suggested_package_name":"exact name from ADMIN PACKAGES or null"}}"""
+{{"destination":"city name (e.g. Srinagar not SXR)","tagline":"one punchy exciting line","reason":"2-3 sentences why perfect for this vibe right now","itinerary":["Day 1: arrive + specific local activity","Day 2: main city highlight","Day 3: explore local spot + depart"],"included":["Return flights","3N hotel","Breakfast daily","Airport transfers"],"duration_days":3,"suggested_package_name":"exact name from ADMIN PACKAGES or null"}}"""
 
                 resp = oai.chat.completions.create(
                     model='gpt-4o',
