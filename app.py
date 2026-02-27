@@ -10970,111 +10970,367 @@ def package_detail_page(pid):
 # LAST MINUTE DEALS API
 # =====================================================
 
-@app.route('/api/last-minute-deals', methods=['GET'])
-def last_minute_deals():
-    """
-    Returns last-minute deals — trips within next 7 days.
-    Sources:
-      1. Admin trending_packages marked as last_minute
-      2. Amadeus live flights with cheap fares (next 7 days)
-    """
+# =====================================================
+# LAST MINUTE DEALS — AUTO REFRESH SYSTEM
+# =====================================================
+
+# Popular routes to search (origin, dest_iata, dest_name, city_code, emoji)
+_LM_ROUTES = [
+    ('DEL', 'GOI', 'Goa',           'GOA', '🌊'),
+    ('DEL', 'BOM', 'Mumbai',         'BOM', '🌆'),
+    ('DEL', 'BLR', 'Bangalore',      'BLR', '🌳'),
+    ('DEL', 'COK', 'Kochi',          'COK', '🌴'),
+    ('DEL', 'HYD', 'Hyderabad',      'HYD', '🏛️'),
+    ('BOM', 'DEL', 'Delhi',          'DEL', '🕌'),
+    ('BOM', 'BLR', 'Bangalore',      'BLR', '🌳'),
+    ('DEL', 'SXR', 'Srinagar',       'SXR', '🏔️'),
+    ('DEL', 'IXL', 'Leh',            'LDH', '🏔️'),
+    ('DEL', 'ATQ', 'Amritsar',       'ATQ', '🌾'),
+]
+
+def _ensure_lm_deals_table():
+    """Create last_minute_deals table if not exists."""
     try:
-        client_id = _get_client_id()
+        db = get_db()
+        cur = db.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS last_minute_deals (
+                id           SERIAL PRIMARY KEY,
+                deal_key     VARCHAR(100) UNIQUE NOT NULL,
+                deal_type    VARCHAR(20) NOT NULL DEFAULT 'flight',
+                name         VARCHAR(200) NOT NULL,
+                tagline      VARCHAR(300) DEFAULT '',
+                origin       VARCHAR(10) DEFAULT '',
+                destination  VARCHAR(10) DEFAULT '',
+                dest_name    VARCHAR(100) DEFAULT '',
+                emoji        VARCHAR(10) DEFAULT '✈️',
+                dep_date     DATE,
+                ret_date     DATE,
+                price_inr    NUMERIC(12,2) DEFAULT 0,
+                airline      VARCHAR(100) DEFAULT '',
+                duration_hrs NUMERIC(5,1) DEFAULT 0,
+                stops        INTEGER DEFAULT 0,
+                hotel_name   VARCHAR(200) DEFAULT '',
+                hotel_stars  INTEGER DEFAULT 3,
+                raw_data     JSONB DEFAULT '{}',
+                fetched_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                expires_at   TIMESTAMP DEFAULT (CURRENT_TIMESTAMP + INTERVAL '13 hours')
+            );
+            CREATE INDEX IF NOT EXISTS idx_lm_deals_expires
+                ON last_minute_deals(expires_at);
+        """)
+        db.commit()
+        db.close()
+    except Exception as e:
+        logger.warning(f"LM deals table init error: {e}")
+
+def _do_refresh_lm_deals():
+    """
+    Core refresh logic — fetch flights + hotels from Amadeus for next 7 days.
+    Called by /api/refresh-deals endpoint (triggered by GitHub Actions every 12h).
+    """
+    from datetime import datetime, timedelta
+    _ensure_lm_deals_table()
+
+    today = datetime.now()
+    saved = 0
+    errors = 0
+
+    try:
+        token = _get_amadeus_token()
+        if not token:
+            return {'saved': 0, 'errors': 1, 'message': 'No Amadeus token'}
+
+        base_url = _get_amadeus_base_url()
         db = get_db()
         cur = db.cursor()
 
-        # Get admin curated last-minute packages
-        cur.execute("""
-            SELECT * FROM trending_packages
-            WHERE client_id=%s AND active=TRUE AND deleted=FALSE
-            ORDER BY display_order ASC, created_at DESC
-            LIMIT 10
-        """, (client_id,))
-        packages = cur.fetchall()
-        db.close()
+        # Delete expired deals
+        cur.execute("DELETE FROM last_minute_deals WHERE expires_at < NOW()")
 
-        # Build deals from trending packages (real admin data)
-        deals = []
-        from datetime import datetime, timedelta
-        today = datetime.now()
+        # Search flights for next 3–7 days on all popular routes
+        for origin, dest_iata, dest_name, city_code, emoji in _LM_ROUTES:
+            for days_out in [3, 5, 7]:
+                dep_date = (today + timedelta(days=days_out)).strftime('%Y-%m-%d')
+                ret_date = (today + timedelta(days=days_out + 3)).strftime('%Y-%m-%d')
 
-        for pkg in packages:
-            # Calculate next available weekend as departure
-            days_ahead = (5 - today.weekday()) % 7  # next Friday
-            if days_ahead == 0:
-                days_ahead = 7
-            dep_date = (today + timedelta(days=days_ahead)).strftime('%Y-%m-%d')
-            ret_date = (today + timedelta(days=days_ahead + (pkg.get('duration_days') or 3))).strftime('%Y-%m-%d')
-
-            deals.append({
-                'id': pkg['id'],
-                'name': pkg['name'],
-                'tagline': pkg.get('tagline', ''),
-                'image_url': pkg.get('image_url', ''),
-                'price_from': float(pkg.get('price_from') or 0),
-                'currency': pkg.get('currency', 'INR'),
-                'duration_days': pkg.get('duration_days', 3),
-                'departure_date': dep_date,
-                'return_date': ret_date,
-                'deal_type': 'last_minute',
-                'savings_pct': 15,  # Marketing label — adjust as needed
-                'included_items': pkg.get('included_items', []),
-                'package_id': pkg['id'],
-            })
-
-        # Try Amadeus for live cheap flights in next 7 days
-        amadeus_deals = []
-        try:
-            token = _get_amadeus_token()
-            if token:
-                base_url = _get_amadeus_base_url()
-                # Search cheap flights from Delhi for next 7 days
-                popular_routes = [
-                    ('DEL', 'GOI', 'Goa'),
-                    ('DEL', 'BOM', 'Mumbai'),
-                    ('BOM', 'COK', 'Kochi'),
-                    ('DEL', 'BLR', 'Bangalore'),
-                ]
-                for origin, dest, dest_name in popular_routes[:2]:  # limit API calls
-                    dep = (today + timedelta(days=3)).strftime('%Y-%m-%d')
+                try:
+                    # ── FLIGHTS ──────────────────────────────────────────
                     resp = _requests.get(
                         f'{base_url}/v2/shopping/flight-offers',
                         headers={'Authorization': f'Bearer {token}'},
                         params={
-                            'originLocationCode': origin,
-                            'destinationLocationCode': dest,
-                            'departureDate': dep,
-                            'adults': 2,
-                            'max': 3,
-                            'currencyCode': 'INR',
+                            'originLocationCode':      origin,
+                            'destinationLocationCode': dest_iata,
+                            'departureDate':           dep_date,
+                            'adults':                  2,
+                            'max':                     3,
+                            'currencyCode':            'INR',
+                            'nonStop':                 'false',
                         },
-                        timeout=8,
+                        timeout=10,
                     )
                     if resp.ok:
-                        fdata = resp.json().get('data', [])
-                        for offer in fdata[:1]:
+                        offers = resp.json().get('data', [])
+                        for offer in offers[:2]:
                             price = float(offer.get('price', {}).get('grandTotal', 0))
-                            if price > 0:
-                                amadeus_deals.append({
-                                    'id': f'live_{origin}_{dest}',
-                                    'name': f'{origin} → {dest_name}',
-                                    'tagline': f'Last minute flight deal!',
-                                    'image_url': '',
-                                    'price_from': price,
-                                    'currency': 'INR',
-                                    'duration_days': 3,
-                                    'departure_date': dep,
-                                    'deal_type': 'live_flight',
-                                    'savings_pct': 12,
-                                    'origin': origin,
-                                    'destination_iata': dest,
-                                    'package_id': None,
-                                })
-        except Exception as e:
-            logger.warning(f"Last minute Amadeus fetch failed: {e}")
+                            if price <= 0:
+                                continue
+                            # Extract flight details
+                            seg = offer.get('itineraries', [{}])[0].get('segments', [{}])[0]
+                            airline = seg.get('carrierCode', '')
+                            stops = len(offer.get('itineraries', [{}])[0].get('segments', [])) - 1
+                            dur_raw = offer.get('itineraries', [{}])[0].get('duration', 'PT2H')
+                            dur_hrs = 0
+                            try:
+                                import re as _re2
+                                hm = _re2.findall(r'(\d+)H|(\d+)M', dur_raw)
+                                dur_hrs = sum(int(h)*1 + int(m)/60 for h,m in hm if h or m)
+                            except Exception:
+                                pass
 
-        all_deals = deals + amadeus_deals
-        return jsonify({'deals': all_deals, 'count': len(all_deals), 'success': True}), 200
+                            deal_key = f"flight_{origin}_{dest_iata}_{dep_date}_{int(price)}"
+                            tagline = f"{'Non-stop' if stops == 0 else f'{stops} stop'} · {int(dur_hrs)}h · {dep_date}"
+
+                            cur.execute("""
+                                INSERT INTO last_minute_deals
+                                    (deal_key, deal_type, name, tagline, origin, destination,
+                                     dest_name, emoji, dep_date, ret_date, price_inr,
+                                     airline, duration_hrs, stops, raw_data,
+                                     fetched_at, expires_at)
+                                VALUES (%s,'flight',%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
+                                        NOW(), NOW() + INTERVAL '13 hours')
+                                ON CONFLICT (deal_key) DO UPDATE SET
+                                    price_inr  = EXCLUDED.price_inr,
+                                    tagline    = EXCLUDED.tagline,
+                                    fetched_at = NOW(),
+                                    expires_at = NOW() + INTERVAL '13 hours'
+                            """, (
+                                deal_key,
+                                f'{origin} → {dest_name}',
+                                tagline,
+                                origin, dest_iata, dest_name, emoji,
+                                dep_date, ret_date, price,
+                                airline, dur_hrs, stops,
+                                json.dumps(offer),
+                            ))
+                            saved += 1
+
+                    # ── HOTELS ───────────────────────────────────────────
+                    hotel_ids_resp = _requests.get(
+                        f'{base_url}/v1/reference-data/locations/hotels/by-city',
+                        headers={'Authorization': f'Bearer {token}'},
+                        params={'cityCode': city_code},
+                        timeout=8,
+                    )
+                    if hotel_ids_resp.ok:
+                        hids = [h['hotelId'] for h in hotel_ids_resp.json().get('data', [])[:10] if h.get('hotelId')]
+                        if hids:
+                            avail_resp = _requests.get(
+                                f'{base_url}/v3/shopping/hotel-offers',
+                                headers={'Authorization': f'Bearer {token}'},
+                                params={
+                                    'hotelIds':  ','.join(hids[:5]),
+                                    'checkInDate':  dep_date,
+                                    'checkOutDate': ret_date,
+                                    'adults': 2,
+                                    'roomQuantity': 1,
+                                    'currency': 'INR',
+                                    'bestRateOnly': 'true',
+                                },
+                                timeout=10,
+                            )
+                            if avail_resp.ok:
+                                for hoffer in avail_resp.json().get('data', [])[:2]:
+                                    h_info = hoffer.get('hotel', {})
+                                    h_name = h_info.get('name', dest_name + ' Hotel')
+                                    h_rating = int(h_info.get('rating') or 3)
+                                    offers_list = hoffer.get('offers', [{}])
+                                    h_price = float(offers_list[0].get('price', {}).get('grandTotal', 0)) if offers_list else 0
+                                    if h_price <= 0:
+                                        continue
+
+                                    deal_key = f"hotel_{city_code}_{dep_date}_{h_info.get('hotelId','x')}"
+                                    cur.execute("""
+                                        INSERT INTO last_minute_deals
+                                            (deal_key, deal_type, name, tagline, origin, destination,
+                                             dest_name, emoji, dep_date, ret_date, price_inr,
+                                             hotel_name, hotel_stars, raw_data,
+                                             fetched_at, expires_at)
+                                        VALUES (%s,'hotel',%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
+                                                NOW(), NOW() + INTERVAL '13 hours')
+                                        ON CONFLICT (deal_key) DO UPDATE SET
+                                            price_inr  = EXCLUDED.price_inr,
+                                            fetched_at = NOW(),
+                                            expires_at = NOW() + INTERVAL '13 hours'
+                                    """, (
+                                        deal_key,
+                                        h_name,
+                                        f"{h_rating}★ · {dep_date} to {ret_date} · {dest_name}",
+                                        origin, city_code, dest_name, emoji,
+                                        dep_date, ret_date, h_price,
+                                        h_name, h_rating,
+                                        json.dumps(hoffer),
+                                    ))
+                                    saved += 1
+
+                except Exception as route_err:
+                    logger.warning(f"LM deals route {origin}→{dest_iata} day+{days_out}: {route_err}")
+                    errors += 1
+                    continue
+
+        db.commit()
+        db.close()
+        logger.info(f"LM deals refresh: {saved} saved, {errors} errors")
+        return {'saved': saved, 'errors': errors, 'message': 'Refresh complete'}
+
+    except Exception as e:
+        logger.error(f"LM deals refresh failed: {e}")
+        return {'saved': saved, 'errors': errors + 1, 'message': str(e)}
+
+
+@app.route('/api/refresh-deals', methods=['GET', 'POST'])
+def refresh_deals():
+    """
+    Triggered by GitHub Actions every 12 hours.
+    Fetches fresh flight + hotel deals from Amadeus and saves to DB.
+    Protected by REFRESH_SECRET env var.
+    """
+    secret = os.environ.get('REFRESH_SECRET', '')
+    provided = (request.args.get('secret') or
+                request.headers.get('X-Refresh-Secret') or
+                (request.get_json(silent=True) or {}).get('secret', ''))
+
+    if secret and provided != secret:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    result = _do_refresh_lm_deals()
+    return jsonify(result), 200
+
+
+@app.route('/api/last-minute-deals', methods=['GET'])
+def last_minute_deals():
+    """
+    Returns saved last-minute deals from DB.
+    If DB is empty / stale, triggers a fresh fetch automatically.
+    """
+    from datetime import datetime, timedelta
+    _ensure_lm_deals_table()
+
+    try:
+        db = get_db()
+        cur = db.cursor()
+
+        # Check if we have fresh deals
+        cur.execute("""
+            SELECT COUNT(*) as cnt FROM last_minute_deals
+            WHERE expires_at > NOW()
+        """)
+        row = cur.fetchone()
+        fresh_count = row['cnt'] if row else 0
+
+        # If no fresh deals — trigger refresh inline (first time or stale)
+        if fresh_count == 0:
+            logger.info("LM deals: no fresh data — triggering inline refresh")
+            db.close()
+            _do_refresh_lm_deals()
+            db = get_db()
+            cur = db.cursor()
+
+        # Fetch best deals — cheapest per route, mix of flights + hotels
+        cur.execute("""
+            SELECT DISTINCT ON (destination, deal_type, dep_date)
+                id, deal_type, name, tagline, origin, destination,
+                dest_name, emoji, dep_date, ret_date, price_inr,
+                airline, stops, duration_hrs, hotel_name, hotel_stars,
+                fetched_at
+            FROM last_minute_deals
+            WHERE expires_at > NOW()
+            ORDER BY destination, deal_type, dep_date, price_inr ASC
+            LIMIT 20
+        """)
+        rows = cur.fetchall()
+        db.close()
+
+        deals = []
+        for r in rows:
+            dep = str(r['dep_date']) if r['dep_date'] else ''
+            ret = str(r['ret_date']) if r['ret_date'] else ''
+            dep_fmt = ''
+            try:
+                dep_fmt = datetime.strptime(dep, '%Y-%m-%d').strftime('%d %b')
+            except Exception:
+                dep_fmt = dep
+
+            deal = {
+                'id':           r['id'],
+                'deal_type':    r['deal_type'],
+                'name':         r['name'],
+                'tagline':      r['tagline'],
+                'origin':       r['origin'],
+                'destination':  r['destination'],
+                'dest_name':    r['dest_name'],
+                'emoji':        r['emoji'] or '✈️',
+                'dep_date':     dep,
+                'ret_date':     ret,
+                'dep_date_fmt': dep_fmt,
+                'price_inr':    float(r['price_inr'] or 0),
+                'price_str':    f"₹{int(r['price_inr'] or 0):,}",
+                'savings_pct':  12,
+                'image_url':    '',
+                'package_id':   None,
+            }
+            if r['deal_type'] == 'flight':
+                stops_str = 'Non-stop' if r['stops'] == 0 else f"{r['stops']} stop"
+                deal['subtitle'] = f"{r['airline'] or ''} · {stops_str}"
+            else:
+                deal['subtitle'] = f"{r['hotel_stars'] or 3}★ Hotel · {r['dest_name']}"
+                deal['hotel_name'] = r['hotel_name']
+
+            deals.append(deal)
+
+        # Also add admin trending packages as curated deals
+        admin_deals = []
+        try:
+            db2 = get_db()
+            cur2 = db2.cursor()
+            cur2.execute("""
+                SELECT * FROM trending_packages
+                WHERE active=TRUE AND deleted=FALSE
+                ORDER BY display_order, created_at DESC LIMIT 4
+            """)
+            pkgs = cur2.fetchall()
+            db2.close()
+            today = datetime.now()
+            days_ahead = (5 - today.weekday()) % 7 or 7
+            fri = (today + timedelta(days=days_ahead)).strftime('%Y-%m-%d')
+            for pkg in pkgs:
+                admin_deals.append({
+                    'id':          f"pkg_{pkg['id']}",
+                    'deal_type':   'package',
+                    'name':        pkg['name'],
+                    'tagline':     pkg.get('tagline', ''),
+                    'emoji':       '📦',
+                    'dep_date':    fri,
+                    'dep_date_fmt': datetime.strptime(fri,'%Y-%m-%d').strftime('%d %b'),
+                    'price_inr':   float(pkg.get('price_from') or 0),
+                    'price_str':   f"₹{int(pkg.get('price_from') or 0):,}/person",
+                    'image_url':   pkg.get('image_url', ''),
+                    'package_id':  pkg['id'],
+                    'savings_pct': 15,
+                    'subtitle':    f"{pkg.get('duration_days',3)} nights",
+                })
+        except Exception as e:
+            logger.warning(f"Admin packages for LM deals: {e}")
+
+        all_deals = admin_deals + deals  # packages first, then live flights/hotels
+        return jsonify({
+            'deals':      all_deals,
+            'count':      len(all_deals),
+            'live_count': len(deals),
+            'fresh':      fresh_count > 0,
+            'success':    True,
+        }), 200
 
     except Exception as e:
         logger.error(f"Last minute deals error: {e}")

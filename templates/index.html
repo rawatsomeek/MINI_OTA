@@ -3548,14 +3548,12 @@ function _lmFallbackCards() {
     const vibeEmojis = { 'live_flight': '✈️', 'last_minute': '🏔️' };
 
     track.innerHTML = deals.map(deal => {
-      const priceStr = deal.price_from
-        ? `₹${Number(deal.price_from).toLocaleString('en-IN')}`
-        : 'View Deal';
+      const priceStr = deal.price_str || (deal.price_inr ? `₹${Number(deal.price_inr).toLocaleString('en-IN')}` : 'View Deal');
       const savingsStr = deal.savings_pct ? `${deal.savings_pct}% OFF` : 'DEAL';
-      const depDate = deal.departure_date ? new Date(deal.departure_date).toLocaleDateString('en-IN', {day:'numeric', month:'short'}) : '';
-      const retDate = deal.return_date ? new Date(deal.return_date).toLocaleDateString('en-IN', {day:'numeric', month:'short'}) : '';
-      const datesStr = depDate && retDate ? `${depDate} – ${retDate}` : depDate || 'This Weekend';
-      const emoji = vibeEmojis[deal.deal_type] || '🌟';
+      const datesStr = deal.dep_date_fmt ? `${deal.dep_date_fmt}` : 'This Weekend';
+      const emoji = deal.emoji || (deal.deal_type === 'flight' ? '✈️' : deal.deal_type === 'hotel' ? '🏨' : '📦');
+      const typeTag = deal.deal_type === 'flight' ? '✈️ Flight' : deal.deal_type === 'hotel' ? '🏨 Hotel' : '📦 Package';
+      const subtitle = deal.subtitle || deal.tagline || '';
 
       return `
         <div class="lm-card" onclick="bookLastMinuteDeal(${JSON.stringify(deal).replace(/"/g, '&quot;')})">
@@ -3563,10 +3561,15 @@ function _lmFallbackCards() {
           ${deal.image_url
             ? `<img class="lm-card-img" src="${deal.image_url}" alt="${deal.name}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
             : ''}
-          <div class="lm-card-img-placeholder" style="${deal.image_url ? 'display:none' : ''}">${emoji}</div>
+          <div class="lm-card-img-placeholder" style="${deal.image_url ? 'display:none' : ''}">
+            <div style="text-align:center">
+              <div style="font-size:36px">${emoji}</div>
+              <div style="font-size:11px;color:rgba(255,255,255,0.4);margin-top:6px">${typeTag}</div>
+            </div>
+          </div>
           <div class="lm-card-body">
             <div class="lm-card-name">${deal.name}</div>
-            <div class="lm-card-tagline">${deal.tagline || 'Book now — limited availability!'}</div>
+            <div class="lm-card-tagline">${subtitle || 'Limited availability — book now!'}</div>
             <div class="lm-card-meta">
               <div class="lm-card-dates">📅 ${datesStr}</div>
               <div class="lm-card-price">${priceStr}</div>
@@ -3582,19 +3585,36 @@ function _lmFallbackCards() {
 })();
 
 function bookLastMinuteDeal(deal) {
-  if (deal.package_id) {
+  if (deal.package_id && typeof deal.package_id === 'number') {
     window.open(`/package_detail.html?id=${deal.package_id}`, '_blank');
-  } else if (deal.origin && deal.destination_iata) {
-    // Pre-fill search with these flight params
-    const tab = document.querySelector('[data-tab="packages"]');
-    if (tab) tab.click();
+    return;
+  }
+  // Pre-fill search form with deal params
+  if (deal.deal_type === 'flight' && deal.origin) {
+    const flightTab = document.querySelector('[data-tab="flights"]');
+    if (flightTab) flightTab.click();
     setTimeout(() => {
-      const originIn = document.getElementById('pkgOriginInput');
-      const destIn = document.getElementById('pkgDestInput');
-      if (originIn) originIn.value = deal.origin;
-      if (destIn) destIn.value = deal.destination_iata;
-      document.getElementById('surpriseSection')?.scrollIntoView({behavior:'smooth'});
-    }, 200);
+      const fromEl = document.getElementById('flightFromInput');
+      const toEl   = document.getElementById('flightToInput');
+      const depEl  = document.getElementById('flightDeparture');
+      if (fromEl) { fromEl.value = deal.origin; fromEl.dispatchEvent(new Event('input')); }
+      if (toEl)   { toEl.value   = deal.destination; toEl.dispatchEvent(new Event('input')); }
+      if (depEl && deal.dep_date)  { depEl.value = deal.dep_date; depEl.dispatchEvent(new Event('change')); }
+      setTimeout(() => { if (typeof performFlightSearch === 'function') performFlightSearch(); }, 500);
+    }, 300);
+  } else if (deal.deal_type === 'hotel' && deal.destination) {
+    const hotelTab = document.querySelector('[data-tab="hotels"]');
+    if (hotelTab) hotelTab.click();
+    setTimeout(() => {
+      const destEl = document.getElementById('destinationInput');
+      const cinEl  = document.getElementById('checkInInput');
+      const coutEl = document.getElementById('checkOutInput');
+      if (destEl) { destEl.value = deal.dest_name || deal.destination; destEl.dispatchEvent(new Event('input')); }
+      if (cinEl && deal.dep_date)  cinEl.value = deal.dep_date;
+      if (coutEl && deal.ret_date) coutEl.value = deal.ret_date;
+      setTimeout(() => { if (typeof performSearch === 'function') performSearch(); }, 500);
+    }, 300);
+    document.getElementById('resultsSection')?.scrollIntoView({behavior:'smooth'});
   }
 }
 
