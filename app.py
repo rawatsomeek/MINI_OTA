@@ -10974,6 +10974,32 @@ def package_detail_page(pid):
 # LAST MINUTE DEALS — AUTO REFRESH SYSTEM
 # =====================================================
 
+# Unsplash image cache — destination name → image URL
+_unsplash_img_cache: dict = {}
+
+def _get_unsplash_image(dest_name: str) -> str:
+    if dest_name in _unsplash_img_cache:
+        return _unsplash_img_cache[dest_name]
+    key = os.environ.get('UNSPLASH_ACCESS_KEY', '')
+    if not key:
+        return ''
+    try:
+        resp = _requests.get(
+            'https://api.unsplash.com/search/photos',
+            params={'query': f"{dest_name} India travel", 'per_page': 1, 'orientation': 'landscape'},
+            headers={'Authorization': f'Client-ID {key}'},
+            timeout=5,
+        )
+        if resp.ok:
+            results = resp.json().get('results', [])
+            if results:
+                url = results[0].get('urls', {}).get('regular', '')
+                _unsplash_img_cache[dest_name] = url
+                return url
+    except Exception:
+        pass
+    return ''
+
 # Popular routes to search (origin, dest_iata, dest_name, city_code, emoji)
 _LM_ROUTES = [
     ('DEL', 'GOI', 'Goa',           'GOA', '🌊'),
@@ -11012,6 +11038,7 @@ def _ensure_lm_deals_table():
                 stops        INTEGER DEFAULT 0,
                 hotel_name   VARCHAR(200) DEFAULT '',
                 hotel_stars  INTEGER DEFAULT 3,
+                image_url    TEXT DEFAULT '',
                 raw_data     JSONB DEFAULT '{}',
                 fetched_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 expires_at   TIMESTAMP DEFAULT (CURRENT_TIMESTAMP + INTERVAL '13 hours')
@@ -11091,18 +11118,20 @@ def _do_refresh_lm_deals():
 
                             deal_key = f"flight_{origin}_{dest_iata}_{dep_date}_{int(price)}"
                             tagline = f"{'Non-stop' if stops == 0 else f'{stops} stop'} · {int(dur_hrs)}h · {dep_date}"
+                            img_url = _get_unsplash_image(dest_name)
 
                             cur.execute("""
                                 INSERT INTO last_minute_deals
                                     (deal_key, deal_type, name, tagline, origin, destination,
                                      dest_name, emoji, dep_date, ret_date, price_inr,
-                                     airline, duration_hrs, stops, raw_data,
+                                     airline, duration_hrs, stops, image_url, raw_data,
                                      fetched_at, expires_at)
-                                VALUES (%s,'flight',%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
+                                VALUES (%s,'flight',%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
                                         NOW(), NOW() + INTERVAL '13 hours')
                                 ON CONFLICT (deal_key) DO UPDATE SET
                                     price_inr  = EXCLUDED.price_inr,
                                     tagline    = EXCLUDED.tagline,
+                                    image_url  = EXCLUDED.image_url,
                                     fetched_at = NOW(),
                                     expires_at = NOW() + INTERVAL '13 hours'
                             """, (
@@ -11112,6 +11141,7 @@ def _do_refresh_lm_deals():
                                 origin, dest_iata, dest_name, emoji,
                                 dep_date, ret_date, price,
                                 airline, dur_hrs, stops,
+                                img_url,
                                 json.dumps(offer),
                             ))
                             saved += 1
@@ -11242,7 +11272,7 @@ def last_minute_deals():
                 id, deal_type, name, tagline, origin, destination,
                 dest_name, emoji, dep_date, ret_date, price_inr,
                 airline, stops, duration_hrs, hotel_name, hotel_stars,
-                fetched_at
+                image_url, fetched_at
             FROM last_minute_deals
             WHERE expires_at > NOW()
             ORDER BY destination, deal_type, dep_date, price_inr ASC
@@ -11276,7 +11306,7 @@ def last_minute_deals():
                 'price_inr':    float(r['price_inr'] or 0),
                 'price_str':    f"₹{int(r['price_inr'] or 0):,}",
                 'savings_pct':  12,
-                'image_url':    '',
+                'image_url':    r.get('image_url', '') or '',
                 'package_id':   None,
             }
             if r['deal_type'] == 'flight':
@@ -11343,19 +11373,20 @@ def last_minute_deals():
 @app.route('/api/surprise-trip', methods=['POST'])
 def surprise_trip():
     """
-    Surprise trip generator — AI picks destination from DB packages + Amadeus live flights.
-    Returns a full bookable package, not just info.
+    Surprise trip — Sharad fetches live flight + hotel from Amadeus,
+    AI writes itinerary, returns a complete bookable package card.
     """
     import random
+    from datetime import datetime, timedelta
     try:
-        data = request.get_json() or {}
-        budget = int(data.get('budget', 15000))
-        vibe = data.get('vibe', 'adventure')
-        adults = int(data.get('adults', 2))
-        origin = data.get('origin', 'DEL')
+        data    = request.get_json() or {}
+        budget  = int(data.get('budget', 15000))
+        vibe    = data.get('vibe', 'adventure')
+        adults  = int(data.get('adults', 2))
+        origin  = data.get('origin', 'DEL')
         client_id = get_client_id()
 
-        # ── Step 1: Get admin packages from DB ─────────────────────────────
+        # ── Step 1: Admin packages from DB ──────────────────────────────────
         db = get_db()
         cur = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cur.execute("SELECT * FROM destinations WHERE client_id=%s AND active=TRUE", (client_id,))
@@ -11369,92 +11400,152 @@ def surprise_trip():
         dest_list = ', '.join([f"{d['name']} ({d.get('destination_type','')})" for d in destinations])
         pkg_list  = ', '.join([f"{p['name']} (₹{p.get('price_from',0)}/person)" for p in packages])
 
-        # ── Step 2: Try to fetch a live Amadeus flight deal ─────────────────
-        from datetime import datetime, timedelta
+        # ── Step 2: Amadeus live flight ──────────────────────────────────────
         amadeus_flight = None
+        amadeus_hotel  = None
+        dep_date = (datetime.now() + timedelta(days=5)).strftime('%Y-%m-%d')
+        ret_date = (datetime.now() + timedelta(days=8)).strftime('%Y-%m-%d')
+
+        vibe_routes = {
+            'adventure': [('DEL','SXR'),('DEL','IXL'),('DEL','ATQ')],
+            'chill':     [('DEL','GOI'),('BOM','GOI'),('DEL','COK')],
+            'romantic':  [('DEL','GOI'),('DEL','COK'),('BOM','BLR')],
+            'spiritual': [('DEL','ATQ'),('DEL','BOM'),('BOM','DEL')],
+            'family':    [('DEL','BOM'),('DEL','BLR'),('DEL','HYD')],
+        }
+        dest_city_map = {
+            'SXR':'SXR','IXL':'LDH','ATQ':'ATQ','GOI':'GOA',
+            'COK':'COK','BLR':'BLR','BOM':'BOM','HYD':'HYD','DEL':'DEL'
+        }
+        routes = vibe_routes.get(vibe, [('DEL','GOI'),('DEL','BOM')])
+        random.shuffle(routes)
+
         try:
-            token = _get_amadeus_token()
+            token    = _get_amadeus_token()
             base_url = _get_amadeus_base_url()
             if token:
-                vibe_routes = {
-                    'adventure': [('DEL','SXR'),('DEL','IXL'),('DEL','ATQ')],
-                    'chill':     [('DEL','GOI'),('BOM','GOI')],
-                    'romantic':  [('DEL','GOI'),('DEL','COK')],
-                    'spiritual': [('DEL','ATQ'),('BOM','DEL')],
-                    'family':    [('DEL','BOM'),('DEL','BLR')],
-                }
-                routes = vibe_routes.get(vibe, [('DEL','GOI'),('DEL','BOM')])
-                random.shuffle(routes)
-                dep_date = (datetime.now() + timedelta(days=5)).strftime('%Y-%m-%d')
                 for orig_iata, dest_iata in routes:
                     try:
+                        # Flight search
                         resp = _requests.get(
                             f'{base_url}/v2/shopping/flight-offers',
                             headers={'Authorization': f'Bearer {token}'},
                             params={'originLocationCode': orig_iata,
                                     'destinationLocationCode': dest_iata,
                                     'departureDate': dep_date,
-                                    'adults': adults, 'max': 1,
-                                    'currencyCode': 'INR'},
+                                    'returnDate': ret_date,
+                                    'adults': adults,
+                                    'max': 1,
+                                    'currencyCode': 'INR',
+                                    'nonStop': 'false'},
                             timeout=8,
                         )
                         if resp.ok:
                             offers = resp.json().get('data', [])
                             if offers:
-                                o = offers[0]
+                                o     = offers[0]
                                 price = float(o.get('price', {}).get('grandTotal', 0))
-                                seg = o.get('itineraries', [{}])[0].get('segments', [{}])[0]
+                                seg   = o.get('itineraries', [{}])[0].get('segments', [{}])[0]
+                                stops = len(o.get('itineraries', [{}])[0].get('segments', [])) - 1
                                 amadeus_flight = {
-                                    'origin': orig_iata,
+                                    'origin':      orig_iata,
                                     'destination': dest_iata,
-                                    'price': price,
-                                    'airline': seg.get('carrierCode', ''),
-                                    'dep_date': dep_date,
+                                    'price':       price,
+                                    'airline':     seg.get('carrierCode', ''),
+                                    'dep_date':    dep_date,
+                                    'ret_date':    ret_date,
+                                    'stops':       stops,
                                 }
-                                break
+
+                                # Hotel search for same city
+                                city_code = dest_city_map.get(dest_iata, dest_iata)
+                                try:
+                                    hids_resp = _requests.get(
+                                        f'{base_url}/v1/reference-data/locations/hotels/by-city',
+                                        headers={'Authorization': f'Bearer {token}'},
+                                        params={'cityCode': city_code},
+                                        timeout=6,
+                                    )
+                                    if hids_resp.ok:
+                                        hids = [h['hotelId'] for h in hids_resp.json().get('data', [])[:8] if h.get('hotelId')]
+                                        if hids:
+                                            avail = _requests.get(
+                                                f'{base_url}/v3/shopping/hotel-offers',
+                                                headers={'Authorization': f'Bearer {token}'},
+                                                params={
+                                                    'hotelIds':    ','.join(hids[:5]),
+                                                    'checkInDate':  dep_date,
+                                                    'checkOutDate': ret_date,
+                                                    'adults':       adults,
+                                                    'roomQuantity': 1,
+                                                    'currency':     'INR',
+                                                    'bestRateOnly': 'true',
+                                                },
+                                                timeout=8,
+                                            )
+                                            if avail.ok:
+                                                hdata = avail.json().get('data', [])
+                                                if hdata:
+                                                    h0      = hdata[0]
+                                                    hinfo   = h0.get('hotel', {})
+                                                    h_offer = h0.get('offers', [{}])[0]
+                                                    h_price = float(h_offer.get('price', {}).get('grandTotal', 0))
+                                                    amadeus_hotel = {
+                                                        'name':    hinfo.get('name', 'Hotel'),
+                                                        'stars':   int(hinfo.get('rating') or 3),
+                                                        'price':   h_price,
+                                                        'city':    city_code,
+                                                        'nights':  3,
+                                                    }
+                                except Exception as he:
+                                    logger.warning(f"Hotel fetch in surprise: {he}")
+                                break  # got flight, stop trying routes
                     except Exception:
                         continue
         except Exception as fe:
-            logger.warning(f"Surprise trip Amadeus fetch: {fe}")
+            logger.warning(f"Surprise Amadeus fetch: {fe}")
 
-        # ── Step 3: AI picks the best match ────────────────────────────────
+        # ── Step 3: AI writes itinerary ──────────────────────────────────────
         openai_key = os.environ.get('OPENAI_API_KEY', '').strip()
         ai_result  = None
 
-        if OPENAI_AVAILABLE and openai_key and (packages or destinations):
+        flight_ctx = ''
+        hotel_ctx  = ''
+        if amadeus_flight:
+            stops_str  = 'Non-stop' if amadeus_flight['stops'] == 0 else f"{amadeus_flight['stops']} stop"
+            flight_ctx = f"LIVE FLIGHT: {amadeus_flight['origin']}→{amadeus_flight['destination']} on {dep_date}, ₹{int(amadeus_flight['price']):,} ({amadeus_flight['airline']}, {stops_str})"
+        if amadeus_hotel:
+            hotel_ctx  = f"LIVE HOTEL: {amadeus_hotel['name']} ({amadeus_hotel['stars']}★), 3 nights ₹{int(amadeus_hotel['price']):,}"
+
+        if OPENAI_AVAILABLE and openai_key:
             try:
-                oai = _OpenAI(api_key=openai_key, timeout=20.0, max_retries=0)
+                oai = _OpenAI(api_key=openai_key, timeout=25.0, max_retries=0)
                 vibe_desc = {
-                    'adventure': 'thrilling, outdoor, trekking, mountains',
-                    'romantic':  'intimate, scenic, couple-friendly',
-                    'family':    'kid-friendly, safe, fun for all ages',
-                    'spiritual': 'temples, peace, culture, heritage',
-                    'chill':     'relaxing, beaches, laid-back, peaceful',
+                    'adventure': 'thrilling trekking, outdoor sports, mountains',
+                    'romantic':  'intimate, scenic sunsets, couple-friendly',
+                    'family':    'kid-friendly, safe, comfortable, fun',
+                    'spiritual': 'temples, ghats, culture, heritage',
+                    'chill':     'beaches, relaxing, laid-back, peaceful',
                 }.get(vibe, vibe)
 
-                flight_ctx = ''
-                if amadeus_flight:
-                    flight_ctx = f"\nLIVE FLIGHT AVAILABLE: {amadeus_flight['origin']} → {amadeus_flight['destination']} on {amadeus_flight['dep_date']} at ₹{int(amadeus_flight['price']):,} ({amadeus_flight['airline']})"
-
-                prompt = f"""You are a surprise travel curator. Pick ONE perfect trip.
+                prompt = f"""You are Sharad, an expert Indian travel planner. Create a COMPLETE surprise trip package.
 
 User: vibe={vibe} ({vibe_desc}), budget=₹{budget}/person, adults={adults}, origin={origin}
-PACKAGES: {pkg_list or 'None'}
-DESTINATIONS: {dest_list or 'Manali, Goa, Jaipur'}{flight_ctx}
+{flight_ctx}
+{hotel_ctx}
+ADMIN PACKAGES: {pkg_list or 'None'}
+DESTINATIONS: {dest_list or 'Manali, Goa, Jaipur, Kochi, Amritsar'}
 
-Rules:
-- If a live flight is available and fits budget, prefer that destination.
-- Suggest the exact package name if it fits.
-- Be exciting and specific — not generic.
+Create an exciting complete package. If live flight+hotel data is available, use those details.
 
-Respond ONLY in JSON:
-{{"destination":"name","tagline":"one exciting line","reason":"2-3 sentences why perfect for them now","duration_days":3,"suggested_package_name":"exact name from PACKAGES or null"}}"""
+Respond ONLY in this exact JSON (no extra text):
+{{"destination":"city name","tagline":"one punchy exciting line","reason":"2-3 sentences why perfect for this vibe right now","itinerary":["Day 1: arrive + evening activity","Day 2: main highlight activity","Day 3: explore + depart"],"included":["Return flights","3N hotel","Breakfast daily","Airport transfers"],"duration_days":3,"suggested_package_name":"exact name from ADMIN PACKAGES or null"}}"""
 
                 resp = oai.chat.completions.create(
                     model='gpt-4o',
                     messages=[{'role': 'user', 'content': prompt}],
                     temperature=0.85,
-                    max_tokens=250,
+                    max_tokens=400,
                 )
                 raw = resp.choices[0].message.content.strip()
                 try:
@@ -11465,9 +11556,9 @@ Respond ONLY in JSON:
                         try: ai_result = json.loads(m.group(0))
                         except Exception: pass
             except Exception as ai_err:
-                logger.warning(f"Surprise trip AI error: {ai_err}")
+                logger.warning(f"Surprise AI error: {ai_err}")
 
-        # ── Step 4: Match to a real package ────────────────────────────────
+        # ── Step 4: Match admin package if possible ──────────────────────────
         matched_pkg = None
         if ai_result and packages:
             suggested_name = (ai_result.get('suggested_package_name') or '').lower()
@@ -11478,21 +11569,56 @@ Respond ONLY in JSON:
         if not matched_pkg and packages:
             matched_pkg = random.choice(packages)
 
-        # Fallback if no AI result
+        # Fallback ai_result from matched_pkg
         if not ai_result:
             ai_result = {
-                'destination': matched_pkg['name'] if matched_pkg else (destinations[0]['name'] if destinations else 'Manali'),
-                'tagline': matched_pkg.get('tagline', 'An unexpected escape awaits!') if matched_pkg else 'An unexpected escape awaits!',
-                'reason': matched_pkg.get('description', 'A perfectly curated getaway just for you.') if matched_pkg else 'A perfectly curated getaway just for you.',
-                'duration_days': matched_pkg.get('duration_days', 3) if matched_pkg else 3,
+                'destination':  matched_pkg['name'] if matched_pkg else (destinations[0]['name'] if destinations else 'Goa'),
+                'tagline':      matched_pkg.get('tagline','An unexpected escape awaits!') if matched_pkg else 'An unexpected escape awaits!',
+                'reason':       matched_pkg.get('description','A perfectly curated getaway just for you.') if matched_pkg else 'A perfectly curated getaway just for you.',
+                'itinerary':    ['Day 1: Arrive & explore','Day 2: Main highlights','Day 3: Leisure & depart'],
+                'included':     ['Hotel stay','Breakfast','Airport transfers'],
+                'duration_days': matched_pkg.get('duration_days',3) if matched_pkg else 3,
             }
 
-        # ── Step 5: Build response ──────────────────────────────────────────
-        price = float(matched_pkg.get('price_from') or 0) if matched_pkg else (amadeus_flight['price'] if amadeus_flight else 0)
-        included = matched_pkg.get('included_items', []) if matched_pkg else []
-        if isinstance(included, str):
-            try: included = json.loads(included)
-            except Exception: included = []
+        # ── Step 5: Compute total price ──────────────────────────────────────
+        flight_price = amadeus_flight['price'] if amadeus_flight else 0
+        hotel_price  = amadeus_hotel['price']  if amadeus_hotel  else 0
+        pkg_price    = float(matched_pkg.get('price_from') or 0) if matched_pkg else 0
+
+        if flight_price and hotel_price:
+            total_price = flight_price + hotel_price   # both are per-booking totals
+        elif pkg_price:
+            total_price = pkg_price * adults
+        else:
+            total_price = budget * adults
+
+        included_items = ai_result.get('included', [])
+        if matched_pkg:
+            db_items = matched_pkg.get('included_items', [])
+            if isinstance(db_items, str):
+                try: db_items = json.loads(db_items)
+                except Exception: db_items = []
+            if db_items:
+                included_items = db_items
+
+        # Unsplash image for destination
+        unsplash_key = os.environ.get('UNSPLASH_ACCESS_KEY', '')
+        image_url = ''
+        if unsplash_key:
+            try:
+                dest_name = ai_result.get('destination', '')
+                img_resp = _requests.get(
+                    'https://api.unsplash.com/search/photos',
+                    params={'query': f"{dest_name} India travel", 'per_page': 1, 'orientation': 'landscape'},
+                    headers={'Authorization': f'Client-ID {unsplash_key}'},
+                    timeout=5,
+                )
+                if img_resp.ok:
+                    results = img_resp.json().get('results', [])
+                    if results:
+                        image_url = results[0].get('urls', {}).get('regular', '')
+            except Exception:
+                pass
 
         return jsonify({
             'success': True,
@@ -11500,15 +11626,18 @@ Respond ONLY in JSON:
                 'destination':   ai_result.get('destination', ''),
                 'tagline':       ai_result.get('tagline', ''),
                 'reason':        ai_result.get('reason', ''),
+                'itinerary':     ai_result.get('itinerary', []),
+                'included':      included_items,
                 'duration_days': ai_result.get('duration_days', 3),
                 'package_id':    matched_pkg['id'] if matched_pkg else None,
                 'package_name':  matched_pkg['name'] if matched_pkg else None,
-                'image_url':     matched_pkg.get('image_url', '') if matched_pkg else '',
-                'price_from':    price,
-                'price_str':     f"₹{int(price):,}/person" if price else '',
+                'image_url':     image_url or (matched_pkg.get('image_url','') if matched_pkg else ''),
+                'flight':        amadeus_flight,
+                'hotel':         amadeus_hotel,
+                'total_price':   total_price,
+                'price_str':     f"₹{int(total_price):,}" if total_price else '',
+                'per_person_str': f"₹{int(total_price/adults):,}/person" if total_price else '',
                 'vibe':          vibe,
-                'included_items': included,
-                'amadeus_flight': amadeus_flight,
             }
         }), 200
 
@@ -11545,6 +11674,7 @@ def _run_safe_migrations():
         """)
         db.commit()
         for sql in [
+            "ALTER TABLE last_minute_deals ADD COLUMN IF NOT EXISTS image_url TEXT DEFAULT ''",
             "ALTER TABLE hotels ADD COLUMN IF NOT EXISTS address TEXT DEFAULT ''",
             "ALTER TABLE hotels ADD COLUMN IF NOT EXISTS star_rating INTEGER DEFAULT 3",
             "ALTER TABLE hotels ADD COLUMN IF NOT EXISTS description TEXT DEFAULT ''",
