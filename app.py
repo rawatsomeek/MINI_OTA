@@ -11490,7 +11490,12 @@ def surprise_trip():
                                                     h0      = hdata[0]
                                                     hinfo   = h0.get('hotel', {})
                                                     h_offer = h0.get('offers', [{}])[0]
-                                                    h_price = float(h_offer.get('price', {}).get('grandTotal', 0))
+                                                    _hprice_dict = h_offer.get('price', {})
+                                                    h_price = float(
+                                                        _hprice_dict.get('grandTotal') or
+                                                        _hprice_dict.get('total') or
+                                                        _hprice_dict.get('base') or 0
+                                                    )
                                                     amadeus_hotel = {
                                                         'name':    hinfo.get('name', 'Hotel'),
                                                         'stars':   int(hinfo.get('rating') or 3),
@@ -11537,14 +11542,16 @@ User: vibe={vibe} ({vibe_desc}), budget=₹{budget}/person, adults={adults}, ori
 ADMIN PACKAGES: {pkg_list or 'None'}
 DESTINATIONS: {dest_list or 'Manali, Goa, Jaipur, Kochi, Amritsar'}
 
-IMPORTANT RULES:
-- destination must be the CITY NAME (e.g. "Srinagar", "Goa") — NOT an IATA code like "SXR"
-- If LIVE FLIGHT shows "to Srinagar", set destination="Srinagar" and build entire itinerary for Srinagar
-- Write real activities for that specific city — local landmarks, food, experiences
-- Be exciting and personal
+RULES (follow strictly):
+1. destination = CITY NAME only (e.g. "Srinagar", "Goa", "Leh") — NEVER an IATA code
+2. If LIVE FLIGHT is available, destination MUST be that flight's city
+3. Budget is ₹{budget}/person — keep total trip within ₹{budget*adults} total for {adults} people
+4. Itinerary = real experiences: treks, food, adventure, local culture — NO generic "sightseeing"
+5. Each day = ONE specific activity (e.g. "Day 1: Night at Dal Lake houseboat + shikara at sunset")
+6. suggested_package_name = exact ADMIN PACKAGE name only if it matches the destination city
 
-Respond ONLY in this exact JSON (no extra text):
-{{"destination":"city name (e.g. Srinagar not SXR)","tagline":"one punchy exciting line","reason":"2-3 sentences why perfect for this vibe right now","itinerary":["Day 1: arrive + specific local activity","Day 2: main city highlight","Day 3: explore local spot + depart"],"included":["Return flights","3N hotel","Breakfast daily","Airport transfers"],"duration_days":3,"suggested_package_name":"exact name from ADMIN PACKAGES or null"}}"""
+Respond ONLY in this exact JSON:
+{{"destination":"city name","tagline":"one exciting punchy line","reason":"2-3 sentences specific to this city and vibe, what makes it special right now","duration_days":3,"suggested_package_name":"exact name or null"}}"""
 
                 resp = oai.chat.completions.create(
                     model='gpt-4o',
@@ -11571,18 +11578,23 @@ Respond ONLY in this exact JSON (no extra text):
                 if suggested_name and (suggested_name in pkg['name'].lower() or pkg['name'].lower() in suggested_name):
                     matched_pkg = pkg
                     break
-        if not matched_pkg and packages:
-            matched_pkg = random.choice(packages)
+        # Only use matched_pkg if AI explicitly suggested it (no random fallback)
 
-        # Fallback ai_result from matched_pkg
+        # Fallback ai_result — use Amadeus city if available, else destinations list
         if not ai_result:
+            fallback_dest = (
+                amadeus_flight.get('dest_city') if amadeus_flight else
+                (destinations[0]['name'] if destinations else 'Goa')
+            )
             ai_result = {
-                'destination':  matched_pkg['name'] if matched_pkg else (destinations[0]['name'] if destinations else 'Goa'),
-                'tagline':      matched_pkg.get('tagline','An unexpected escape awaits!') if matched_pkg else 'An unexpected escape awaits!',
-                'reason':       matched_pkg.get('description','A perfectly curated getaway just for you.') if matched_pkg else 'A perfectly curated getaway just for you.',
-                'itinerary':    ['Day 1: Arrive & explore','Day 2: Main highlights','Day 3: Leisure & depart'],
-                'included':     ['Hotel stay','Breakfast','Airport transfers'],
-                'duration_days': matched_pkg.get('duration_days',3) if matched_pkg else 3,
+                'destination':  fallback_dest,
+                'tagline':      f'An incredible {vibe} escape awaits!',
+                'reason':       f'A perfectly curated {vibe} trip to {fallback_dest} just for you.',
+                'itinerary':    [f'Day 1: Arrive in {fallback_dest} & check in',
+                                 f'Day 2: Explore the best of {fallback_dest}',
+                                 f'Day 3: Local experiences + depart'],
+                'included':     ['Return flights', '3N hotel', 'Breakfast daily', 'Airport transfers'],
+                'duration_days': 3,
             }
 
         # ── Step 5: Compute total price ──────────────────────────────────────
@@ -11631,7 +11643,6 @@ Respond ONLY in this exact JSON (no extra text):
                 'destination':   ai_result.get('destination', ''),
                 'tagline':       ai_result.get('tagline', ''),
                 'reason':        ai_result.get('reason', ''),
-                'itinerary':     ai_result.get('itinerary', []),
                 'included':      included_items,
                 'duration_days': ai_result.get('duration_days', 3),
                 'package_id':    matched_pkg['id'] if matched_pkg else None,

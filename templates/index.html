@@ -1376,6 +1376,44 @@ body::before {
   overflow: hidden;
 }
 
+/* Auto-scroll slideshow */
+.lm-slideshow-wrap {
+  overflow: hidden;
+  padding: 4px 0 16px;
+  position: relative;
+  cursor: grab;
+}
+.lm-slideshow-wrap:active { cursor: grabbing; }
+.lm-slideshow-wrap::before,
+.lm-slideshow-wrap::after {
+  content: '';
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 80px;
+  z-index: 2;
+  pointer-events: none;
+}
+.lm-slideshow-wrap::before {
+  left: 0;
+  background: linear-gradient(to right, var(--ink), transparent);
+}
+.lm-slideshow-wrap::after {
+  right: 0;
+  background: linear-gradient(to left, var(--ink), transparent);
+}
+.lm-slideshow-track {
+  display: flex;
+  gap: 20px;
+  width: max-content;
+  animation: lm-scroll 35s linear infinite;
+  padding: 0 40px;
+}
+.lm-slideshow-track:hover { animation-play-state: paused; }
+@keyframes lm-scroll {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
 .lm-header {
   display: flex;
   align-items: flex-end;
@@ -1693,6 +1731,43 @@ body::before {
   border-radius: 20px;
   padding: 4px 12px;
   margin: 3px 4px 3px 0;
+}
+
+
+/* ── SURPRISE BOOKING CARDS (flight + hotel) ───────────────── */
+.sp-booking-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 10px;
+}
+.sp-booking-icon {
+  font-size: 22px;
+  flex-shrink: 0;
+}
+.sp-booking-info {
+  flex: 1;
+  min-width: 0;
+}
+.sp-booking-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--white);
+  margin-bottom: 3px;
+}
+.sp-booking-sub {
+  font-size: 12px;
+  color: rgba(255,255,255,0.45);
+}
+.sp-booking-price {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--coral);
+  flex-shrink: 0;
 }
 
 @keyframes fadeInUp {
@@ -3164,9 +3239,9 @@ textarea {
     </div>
     <div class="lm-countdown" id="lmCountdown"></div>
   </div>
-  <div class="trending-track-wrap">
-    <div class="trending-track" id="lastMinuteTrack">
-      <!-- filled by JS -->
+  <div class="lm-slideshow-wrap">
+    <div class="lm-slideshow-track" id="lastMinuteTrack">
+      <!-- filled by JS, then duplicated for infinite scroll -->
     </div>
   </div>
 </section>
@@ -3573,7 +3648,7 @@ function _lmFallbackCards() {
     const res = await fetch('/api/last-minute-deals');
     if (!res.ok) {
       section.style.display = 'block';
-      track.innerHTML = _lmFallbackCards();
+      track.innerHTML = _lmFallbackCards() + _lmFallbackCards();
       return;
     }
     const data = await res.json();
@@ -3581,7 +3656,7 @@ function _lmFallbackCards() {
     
     section.style.display = 'block';
     if (deals.length === 0) {
-      track.innerHTML = _lmFallbackCards();
+      track.innerHTML = _lmFallbackCards() + _lmFallbackCards();
       return;
     }
 
@@ -3633,6 +3708,9 @@ function _lmFallbackCards() {
         </div>
       `;
     }).join('');
+
+    // Duplicate cards for seamless infinite scroll
+    track.innerHTML += track.innerHTML;
 
   } catch(e) {
     console.warn('Last minute deals failed:', e);
@@ -3716,22 +3794,43 @@ async function generateSurprise() {
     document.getElementById('surprisePrice').textContent = s.price_str
       ? `Total ${s.price_str} · ${s.per_person_str}` : '';
 
-    // Build extras: image, flight, hotel, itinerary, included
+    // Build extras: image, flight card, hotel card only (no itinerary)
     let extrasHtml = '';
-    if (s.image_url) extrasHtml += `<img src="${s.image_url}" alt="${s.destination}" class="sp-hero-img" onerror="this.style.display='none'">`;
+
+    // Hero image
+    if (s.image_url) {
+      extrasHtml += `<img src="${s.image_url}" alt="${s.destination}" class="sp-hero-img" onerror="this.style.display='none'">`;
+    }
+
+    // Flight card
     if (s.flight) {
-      const stops = s.flight.stops === 0 ? 'Non-stop' : `${s.flight.stops} stop`;
-      extrasHtml += `<div class="sp-detail-row">✈️ <strong>${s.flight.origin} → ${s.flight.destination}</strong> · ${s.flight.airline} · ${stops} · <span style="color:var(--coral)">₹${Number(s.flight.price).toLocaleString('en-IN')}</span></div>`;
+      const fStops = s.flight.stops === 0 ? 'Non-stop' : `${s.flight.stops} stop`;
+      const fDate  = s.flight.dep_date ? new Date(s.flight.dep_date).toLocaleDateString('en-IN', {day:'numeric',month:'short'}) : '';
+      extrasHtml += `
+        <div class="sp-booking-card">
+          <div class="sp-booking-icon">✈️</div>
+          <div class="sp-booking-info">
+            <div class="sp-booking-title">${s.flight.origin} → ${s.flight.dest_city || s.flight.destination}</div>
+            <div class="sp-booking-sub">${s.flight.airline} · ${fStops} · ${fDate} – ${fDate ? new Date(s.flight.ret_date || s.flight.dep_date).toLocaleDateString('en-IN',{day:'numeric',month:'short'}) : ''}</div>
+          </div>
+          <div class="sp-booking-price">₹${Number(s.flight.price).toLocaleString('en-IN')}</div>
+        </div>`;
     }
-    if (s.hotel) {
-      extrasHtml += `<div class="sp-detail-row">🏨 <strong>${s.hotel.name}</strong> · ${'★'.repeat(s.hotel.stars)} · ${s.hotel.nights} nights · <span style="color:var(--coral)">₹${Number(s.hotel.price).toLocaleString('en-IN')}</span></div>`;
+
+    // Hotel card
+    if (s.hotel && s.hotel.price > 0) {
+      const stars = '★'.repeat(Math.min(s.hotel.stars || 3, 5));
+      extrasHtml += `
+        <div class="sp-booking-card">
+          <div class="sp-booking-icon">🏨</div>
+          <div class="sp-booking-info">
+            <div class="sp-booking-title">${s.hotel.name}</div>
+            <div class="sp-booking-sub">${stars} · ${s.hotel.nights || 3} nights</div>
+          </div>
+          <div class="sp-booking-price">₹${Number(s.hotel.price).toLocaleString('en-IN')}</div>
+        </div>`;
     }
-    if (s.itinerary && s.itinerary.length) {
-      extrasHtml += `<div class="sp-itinerary">` + s.itinerary.map(d => `<div class="sp-day">📍 ${d}</div>`).join('') + `</div>`;
-    }
-    if (s.included && s.included.length) {
-      extrasHtml += `<div class="sp-included"><div class="sp-incl-title">✅ What's included</div>` + s.included.map(i => `<span class="sp-incl-tag">${typeof i === 'string' ? i : (i.name || i)}</span>`).join('') + `</div>`;
-    }
+
     document.getElementById('surpriseExtras').innerHTML = extrasHtml;
 
     result.classList.add('visible');
